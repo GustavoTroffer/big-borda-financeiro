@@ -99,7 +99,8 @@ export const generateFinancialSummary = async (
       return generateStaticSummary(record, staffList);
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    // Recommended: Use the API key directly from process.env.API_KEY when initializing.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Preparação dos dados para o prompt
     let paymentsDetails = record.payments.map(p => {
@@ -187,8 +188,9 @@ export const generateFinancialSummary = async (
       5. Indique claramente que 'Pendências' e 'Fiado' são apenas informativos e não alteram o Saldo Final do dia.
     `;
 
+    // Updated model to gemini-3-flash-preview as per text summarization task guidelines.
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: contentPrompt,
       config: {
         systemInstruction: systemInstruction,

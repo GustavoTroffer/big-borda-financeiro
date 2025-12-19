@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const handleEditPastRecord = (date: string) => {
       setEditDate(date);
       setCurrentView('closing');
+      setMobileMenuOpen(false);
   };
 
   const NavItem = ({ view, label, icon: Icon }: { view: ViewState; label: string; icon: any }) => (
@@ -37,6 +38,7 @@ const App: React.FC = () => {
       onClick={() => {
         setCurrentView(view);
         setMobileMenuOpen(false);
+        // Se mudar de aba para algo que não seja fechamento, limpa a data de edição
         if (view !== 'closing') setEditDate(undefined);
       }}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full md:w-auto transition-all duration-200
@@ -101,7 +103,12 @@ const App: React.FC = () => {
 
       <main className="flex-grow container mx-auto py-6">
         <div className={currentView === 'closing' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-          <DailyClose isVisible={currentView === 'closing'} selectedDate={editDate} />
+          {/* A 'key' força o componente a remontar se a data de edição mudar, carregando os dados corretos */}
+          <DailyClose 
+            key={editDate || 'default'} 
+            isVisible={currentView === 'closing'} 
+            selectedDate={editDate} 
+          />
         </div>
         <div className={currentView === 'staff' ? 'block animate-in fade-in duration-300' : 'hidden'}>
           <StaffManager />
