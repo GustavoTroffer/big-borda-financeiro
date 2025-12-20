@@ -4,7 +4,7 @@ import { DailyCloseRecord, StaffMember } from '../types';
 // Helper para formatação de moeda
 const formatCurrency = (value: number) => `R$ ${value.toFixed(2)}`;
 
-// Função de Fallback para gerar resumo sem IA (quando a API falhar ou chave não existir)
+// Função de Fallback para gerar resumo sem IA
 const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[]): string => {
   const sales = record.sales;
   const ifood = sales.ifood || 0;
@@ -12,7 +12,7 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
   const sgv = sales.sgv || (sales as any).app3 || 0;
   const totalSales = ifood + kcms + sgv;
 
-  const totalPayments = record.payments.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalStaffPayments = record.payments.reduce((acc, curr) => acc + curr.amount, 0);
   const totalDebts = record.debts ? record.debts.reduce((acc, curr) => acc + curr.amount, 0) : 0;
   const totalPending = record.pendingPayables ? record.pendingPayables.reduce((acc, curr) => acc + curr.amount, 0) : 0;
   
@@ -20,8 +20,8 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
   const ifoodMotoboyCount = record.ifoodMotoboys?.count || 0;
   const ifoodMotoboyCost = record.ifoodMotoboys?.totalCost || 0;
 
-  // Saldo Final (Vendas - Pagamentos Equipe - Pagamentos Motoboy iFood)
-  const finalBalance = totalSales - totalPayments - ifoodMotoboyCost;
+  // Saldo Final agora é o total das vendas (sem subtrair motoboys ifood conforme solicitado)
+  const finalBalance = totalSales;
 
   const attendantName = record.closedByStaffId 
     ? staffList.find(s => s.id === record.closedByStaffId)?.name || 'Não identificado'
@@ -29,7 +29,6 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
 
   const formattedDate = record.date.split('-').reverse().join('/');
 
-  // Construção do texto formatado para WhatsApp
   let text = `📊 *Fechamento de Caixa - ${formattedDate}*\n`;
   text += `👤 *Responsável:* ${attendantName}\n\n`;
 
@@ -38,9 +37,12 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
   text += `🔹 KCMS: ${formatCurrency(kcms)}\n`;
   text += `🔹 SGV: ${formatCurrency(sgv)}\n\n`;
 
-  text += `💸 *SAÍDAS (PAGAMENTOS): ${formatCurrency(totalPayments + ifoodMotoboyCost)}*\n`;
-  
-  // Lista de pagamentos de equipe
+  if (ifoodMotoboyCost > 0) {
+      text += `🏍️ *MOTOBOTY IFOOD (INFO): ${formatCurrency(ifoodMotoboyCost)}*\n`;
+      text += `▪️ ${ifoodMotoboyCount} entregas realizadas.\n\n`;
+  }
+
+  text += `⏳ *VALORES A PAGAR (EQUIPE): ${formatCurrency(totalStaffPayments)}*\n`;
   if (record.payments.length > 0) {
     record.payments.forEach(p => {
       const staff = staffList.find(s => s.id === p.staffId);
@@ -48,36 +50,30 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
       const deliveryInfo = p.deliveryCount ? ` [${p.deliveryCount} entregas]` : '';
       text += `▪️ ${staff?.name || 'Desconhecido'}${deliveryInfo}${pix}: ${formatCurrency(p.amount)}\n`;
     });
-  }
-  
-  // Item de Motoboy iFood na lista de saídas
-  if (ifoodMotoboyCount > 0) {
-      text += `▪️ Motoboys iFood (${ifoodMotoboyCount} entregas): ${formatCurrency(ifoodMotoboyCost)}\n`;
-  }
-  
-  if (record.payments.length === 0 && ifoodMotoboyCount === 0) {
-    text += `▪️ Nenhum pagamento.\n`;
+  } else {
+    text += `▪️ Nenhum valor de equipe lançado.\n`;
   }
   text += `\n`;
 
   if (totalPending > 0) {
-    text += `⚠️ *PENDÊNCIAS A PAGAR: ${formatCurrency(totalPending)}*\n`;
+    text += `⚠️ *PENDÊNCIAS (A PAGAR): ${formatCurrency(totalPending)}*\n`;
     record.pendingPayables?.forEach(p => {
-        const dateStr = p.date ? ` [${p.date.split('-').reverse().join('/')}]` : '';
+        const dateStr = p.date ? ` [Ref: ${p.date.split('-').reverse().join('/')}]` : '';
         text += `▪️ ${p.name}${dateStr}: ${formatCurrency(p.amount)}\n`;
     });
     text += `\n`;
   }
 
   if (totalDebts > 0) {
-    text += `📒 *FIADO / A RECEBER: ${formatCurrency(totalDebts)}*\n`;
+    text += `📒 *FIADO (A RECEBER): ${formatCurrency(totalDebts)}*\n`;
     record.debts?.forEach(d => {
       text += `▪️ ${d.name}: ${formatCurrency(d.amount)}\n`;
     });
     text += `\n`;
   }
 
-  text += `✅ *SALDO FINAL: ${formatCurrency(finalBalance)}*\n\n`;
+  text += `✅ *SALDO FINAL EM CAIXA: ${formatCurrency(finalBalance)}*\n`;
+  text += `_(Total bruto das vendas do dia)_\n\n`;
   
   if (record.notes) {
     text += `📝 *Observações:* ${record.notes}`;
@@ -92,116 +88,67 @@ export const generateFinancialSummary = async (
 ): Promise<string> => {
   try {
     const apiKey = process.env.API_KEY;
-    
-    // Se não houver chave configurada, usa o fallback imediatamente
-    if (!apiKey) {
-      console.warn("API Key não encontrada. Gerando resumo estático.");
-      return generateStaticSummary(record, staffList);
-    }
+    if (!apiKey) return generateStaticSummary(record, staffList);
 
-    // Recommended: Use the API key directly from process.env.API_KEY when initializing.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // Preparação dos dados para o prompt
-    let paymentsDetails = record.payments.map(p => {
+    let staffPaymentsDetails = record.payments.map(p => {
       const staff = staffList.find(s => s.id === p.staffId);
       const pixStr = staff?.pixKey ? ` | Pix: ${staff.pixKey}` : ''; 
       const deliveryInfo = p.deliveryCount ? ` | ${p.deliveryCount} entregas` : '';
-      return `- ${staff?.name || 'Desconhecido'} (${staff?.role})${deliveryInfo}${pixStr}: R$ ${p.amount.toFixed(2)}`;
+      return `- ${staff?.name || 'Desconhecido'}${deliveryInfo}${pixStr}: R$ ${p.amount.toFixed(2)}`;
     }).join('\n');
 
     const ifoodMotoboyCount = record.ifoodMotoboys?.count || 0;
     const ifoodMotoboyCost = record.ifoodMotoboys?.totalCost || 0;
 
-    if (ifoodMotoboyCount > 0) {
-        paymentsDetails += `\n- Motoboys iFood (${ifoodMotoboyCount} entregas): R$ ${ifoodMotoboyCost.toFixed(2)}`;
-    }
-
-    const debtsDetails = record.debts && record.debts.length > 0 
-      ? record.debts.map(d => `- ${d.name}: R$ ${d.amount.toFixed(2)}`).join('\n')
-      : 'Nenhum fiado.';
-
-    const pendingDetails = record.pendingPayables && record.pendingPayables.length > 0
-      ? record.pendingPayables.map(p => {
-          const dateStr = p.date ? ` (Data: ${p.date.split('-').reverse().join('/')})` : '';
-          return `- ${p.name}${dateStr}: R$ ${p.amount.toFixed(2)}`;
-        }).join('\n')
-      : 'Nenhuma pendência.';
-
     const sales = record.sales;
-    const ifood = sales.ifood || 0;
-    const kcms = sales.kcms || (sales as any).app2 || 0;
-    const sgv = sales.sgv || (sales as any).app3 || 0;
-
-    const totalSales = ifood + kcms + sgv;
-    const totalPayments = record.payments.reduce((acc, curr) => acc + curr.amount, 0);
-    const totalPaymentsAndExpenses = totalPayments + ifoodMotoboyCost;
-
-    const totalDebts = record.debts ? record.debts.reduce((acc, curr) => acc + curr.amount, 0) : 0;
-    const totalPending = record.pendingPayables ? record.pendingPayables.reduce((acc, curr) => acc + curr.amount, 0) : 0;
-    
-    const finalBalance = totalSales - totalPaymentsAndExpenses;
+    const totalSales = (sales.ifood || 0) + (sales.kcms || 0) + (sales.sgv || 0);
+    const totalStaffPayments = record.payments.reduce((acc, curr) => acc + curr.amount, 0);
+    const finalBalance = totalSales; // Não desconta nada
 
     const attendantName = record.closedByStaffId 
       ? staffList.find(s => s.id === record.closedByStaffId)?.name || 'Não identificado'
       : 'Não informado';
 
-    const formattedDate = record.date.split('-').reverse().join('/');
-
-    const systemInstruction = "Você é um assistente financeiro experiente do restaurante 'Big Borda Gourmet'. Sua função é gerar resumos financeiros claros, profissionais e diretos para envio via WhatsApp. Utilize emojis moderadamente para organizar a leitura.";
+    const systemInstruction = "Você é um assistente financeiro do 'Big Borda Gourmet'. Gere resumos para WhatsApp claros e profissionais. Use 'PENDÊNCIAS' para o que o restaurante deve pagar (equipe/fornecedores de outros dias) e 'FIADO' para o que tem a receber de clientes. Regra importante: O saldo final deve ser exatamente o total das vendas brutas.";
 
     const contentPrompt = `
-      Gere um relatório de fechamento de caixa com os seguintes dados:
-
-      DATA: ${formattedDate}
-      RESPONSÁVEL PELO FECHAMENTO: ${attendantName}
+      Gere um relatório de fechamento:
+      DATA: ${record.date.split('-').reverse().join('/')}
+      RESPONSÁVEL: ${attendantName}
       
-      == VENDAS (ENTRADAS) ==
-      Total: R$ ${totalSales.toFixed(2)}
-      Detalhamento: iFood: R$ ${ifood.toFixed(2)} | KCMS: R$ ${kcms.toFixed(2)} | SGV: R$ ${sgv.toFixed(2)}
+      ENTRADAS (TOTAL VENDAS): R$ ${totalSales.toFixed(2)}
       
-      == PAGAMENTOS REALIZADOS (SAÍDAS) ==
-      Total (Equipe + iFood Boys): R$ ${totalPaymentsAndExpenses.toFixed(2)}
-      Lista:
-      ${paymentsDetails}
+      INFORMAÇÕES DE MOTOBOYS IFOOD:
+      - Corridas (${ifoodMotoboyCount} entregas): R$ ${ifoodMotoboyCost.toFixed(2)}
 
-      == PENDÊNCIAS A PAGAR (DÍVIDAS DO RESTAURANTE) ==
-      Total: R$ ${totalPending.toFixed(2)}
-      Lista:
-      ${pendingDetails}
+      VALORES A PAGAR (EQUIPE HOJE):
+      ${staffPaymentsDetails}
+      Total Equipe: R$ ${totalStaffPayments.toFixed(2)}
 
-      == FIADO / A RECEBER (CLIENTES) ==
-      Total: R$ ${totalDebts.toFixed(2)}
-      Lista:
-      ${debtsDetails}
+      PENDÊNCIAS (DÍVIDAS DE OUTROS DIAS/FORNECEDORES):
+      ${record.pendingPayables?.map(p => `- ${p.name} (Ref: ${p.date}): R$ ${p.amount.toFixed(2)}`).join('\n') || 'Nenhuma'}
 
-      == SALDO FINAL DO DIA (Vendas - Pagamentos) ==
-      R$ ${finalBalance.toFixed(2)}
+      FIADO (A RECEBER):
+      ${record.debts?.map(d => `- ${d.name}: R$ ${d.amount.toFixed(2)}`).join('\n') || 'Nenhum'}
+
+      SALDO FINAL EM CAIXA: R$ ${finalBalance.toFixed(2)}
       
       OBSERVAÇÕES: ${record.notes || 'Nenhuma'}
       
-      Instruções para o formato da resposta:
-      1. Inicie com um título chamativo (ex: 📊 Fechamento de Caixa).
-      2. Destaque o RESPONSÁVEL e o SALDO FINAL.
-      3. Liste os pagamentos mantendo as chaves PIX visíveis para facilitar a transferência.
-      4. Indique a quantidade de entregas (quando disponível) ao lado dos nomes dos motoboys.
-      5. Indique claramente que 'Pendências' e 'Fiado' são apenas informativos e não alteram o Saldo Final do dia.
+      Formate com emojis e mantenha os nomes 'FIADO' e 'PENDÊNCIAS'.
     `;
 
-    // Updated model to gemini-3-flash-preview as per text summarization task guidelines.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: contentPrompt,
-      config: {
-        systemInstruction: systemInstruction,
-      }
+      config: { systemInstruction }
     });
 
     return response.text || generateStaticSummary(record, staffList);
 
   } catch (error) {
-    console.error("Erro na IA, usando fallback local:", error);
-    // Em caso de qualquer erro (403, 429, 500), retorna o resumo estático
     return generateStaticSummary(record, staffList);
   }
 };

@@ -8,7 +8,6 @@ import { Pizza, DollarSign, Users, FileText, Menu, X, Moon, Sun } from 'lucide-r
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('closing');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [editDate, setEditDate] = useState<string | undefined>(undefined);
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -27,19 +26,11 @@ const App: React.FC = () => {
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-  const handleEditPastRecord = (date: string) => {
-      setEditDate(date);
-      setCurrentView('closing');
-      setMobileMenuOpen(false);
-  };
-
   const NavItem = ({ view, label, icon: Icon }: { view: ViewState; label: string; icon: any }) => (
     <button
       onClick={() => {
         setCurrentView(view);
         setMobileMenuOpen(false);
-        // Se mudar de aba para algo que não seja fechamento, limpa a data de edição
-        if (view !== 'closing') setEditDate(undefined);
       }}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full md:w-auto transition-all duration-200
         ${currentView === view 
@@ -103,18 +94,15 @@ const App: React.FC = () => {
 
       <main className="flex-grow container mx-auto py-6">
         <div className={currentView === 'closing' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-          {/* A 'key' força o componente a remontar se a data de edição mudar, carregando os dados corretos */}
           <DailyClose 
-            key={editDate || 'default'} 
             isVisible={currentView === 'closing'} 
-            selectedDate={editDate} 
           />
         </div>
         <div className={currentView === 'staff' ? 'block animate-in fade-in duration-300' : 'hidden'}>
           <StaffManager />
         </div>
         <div className={currentView === 'reports' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-          <Reports isVisible={currentView === 'reports'} onEditRecord={handleEditPastRecord} />
+          <Reports isVisible={currentView === 'reports'} />
         </div>
       </main>
 
