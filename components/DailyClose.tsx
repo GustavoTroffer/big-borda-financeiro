@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { DailyCloseRecord, StaffMember, DailySales, DebtItem, PendingItem, StaffRole, AuditEntry, WeeklySchedule, DayOfWeek } from '../types';
 import { getStaff, getRecordByDate, upsertRecord, generateId, getWeeklySchedule, getRecords } from '../services/storageService';
-import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound } from 'lucide-react';
+import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound, StickyNote, Filter, ListChecks } from 'lucide-react';
 
 interface DailyCloseProps {
   isVisible: boolean;
@@ -28,7 +29,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
   const [isClosingStaffModalOpen, setIsClosingStaffModalOpen] = useState(false);
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
   const [closingSearchTerm, setClosingSearchTerm] = useState('');
-  const [selectedDayFilter, setSelectedDayFilter] = useState<DayOfWeek | 'todos'>('todos');
+  const [modalDayFilter, setModalDayFilter] = useState<DayOfWeek | 'todos'>('todos');
   
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
   const [pendingSearchTerm, setPendingSearchTerm] = useState('');
@@ -63,7 +64,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         kcms: record.sales.kcms || (record.sales as any).app2 || 0,
         sgv: record.sales.sgv || (record.sales as any).app3 || 0,
       });
-      setNotes(record.notes);
+      setNotes(record.notes || '');
       setClosingStaffId(record.closedByStaffId || '');
       
       const paymentMap: Record<string, number> = {};
@@ -106,9 +107,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
     setNewPendingDate(date);
     setCurrentRideCost('');
     
+    // Auto-set modal day filter based on current date
     const days: DayOfWeek[] = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
     const dateObj = new Date(date + 'T12:00:00');
-    setSelectedDayFilter(days[dateObj.getDay()]);
+    setModalDayFilter(days[dateObj.getDay()]);
 
   }, [date]);
 
@@ -157,6 +159,20 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
     if (staffId && !activeStaffIds.includes(staffId)) {
         setActiveStaffIds(prev => [...prev, staffId]);
     }
+    setIsStaffModalOpen(false);
+    setStaffSearchTerm('');
+  };
+
+  const handleBulkAddFromSchedule = () => {
+    if (modalDayFilter === 'todos') return;
+    
+    const scheduledIds = weeklySchedule?.[modalDayFilter] || [];
+    const idsToAdd = scheduledIds.filter(id => !activeStaffIds.includes(id));
+    
+    if (idsToAdd.length > 0) {
+      setActiveStaffIds(prev => [...prev, ...idsToAdd]);
+    }
+    
     setIsStaffModalOpen(false);
     setStaffSearchTerm('');
   };
@@ -238,9 +254,14 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
   const sectionHeaderClass = "px-6 py-4 border-b border-gray-50 dark:border-gray-700 flex items-center gap-2 bg-gray-50/50 dark:bg-gray-800/50";
   const sectionTitleClass = "font-bold text-gray-800 dark:text-white text-lg";
 
+  // Filter logic for staff modal
   const availableStaffForPayments = staffList
     .filter(s => !activeStaffIds.includes(s.id))
-    .filter(s => s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()));
+    .filter(s => s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()))
+    .filter(s => {
+        if (modalDayFilter === 'todos') return true;
+        return weeklySchedule?.[modalDayFilter]?.includes(s.id);
+    });
 
   const filteredStaffForPending = staffList
     .filter(s => s.name.toLowerCase().includes(pendingSearchTerm.toLowerCase()));
@@ -250,6 +271,17 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
     .filter(s => s.name.toLowerCase().includes(closingSearchTerm.toLowerCase()));
 
   const selectedClosingStaff = staffList.find(s => s.id === closingStaffId);
+
+  const modalDays: { key: DayOfWeek | 'todos'; label: string }[] = [
+    { key: 'todos', label: 'Todos' },
+    { key: 'segunda', label: 'Seg' },
+    { key: 'terca', label: 'Ter' },
+    { key: 'quarta', label: 'Qua' },
+    { key: 'quinta', label: 'Qui' },
+    { key: 'sexta', label: 'Sex' },
+    { key: 'sabado', label: 'Sáb' },
+    { key: 'domingo', label: 'Dom' },
+  ];
 
   return (
     <div className="max-w-5xl mx-auto pb-32 md:pb-12 px-4 md:px-0">
@@ -291,7 +323,8 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Left Column */}
         <div className="space-y-6">
           <div className={`${cardClass} border-t-4 border-t-bigYellow`}>
             <div className={sectionHeaderClass}>
@@ -358,6 +391,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
           </div>
         </div>
 
+        {/* Right Column */}
         <div className="space-y-6">
           <div className={`${cardClass} border-t-4 border-t-bigRed`}>
             <div className={sectionHeaderClass}>
@@ -465,6 +499,22 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         </div>
       </div>
 
+      {/* NOVO CAMPO: OBSERVAÇÕES */}
+      <div className={`${cardClass} border-t-4 border-t-gray-400 mb-6`}>
+        <div className={sectionHeaderClass}>
+          <div className="p-1.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-500"><StickyNote size={18} /></div>
+          <h3 className={sectionTitleClass}>Observações do Dia</h3>
+        </div>
+        <div className="p-6">
+          <textarea
+            placeholder="Digite aqui observações importantes, ocorrências ou detalhes sobre o fechamento..."
+            className="w-full h-32 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none transition-all resize-none text-gray-700 dark:text-gray-100"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* FOOTER ACTIONS */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 flex justify-end items-center gap-3 z-40 md:static md:bg-transparent md:border-none md:p-0 md:mt-8">
         {savedMessage && <div className="mr-auto hidden md:flex items-center gap-2 text-green-600 font-bold bg-green-50 px-4 py-2 rounded-lg"><CheckCircle2 size={18} /> {savedMessage}</div>}
@@ -536,43 +586,76 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         </div>
       )}
 
-      {/* MODAL: SELECIONAR FUNCIONÁRIO (GERAL) */}
+      {/* MODAL: SELECIONAR FUNCIONÁRIO (GERAL COM FILTROS) */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
-                    <h3 className="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2"><Users size={24} className="text-bigRed" /> Selecionar Funcionário</h3>
+                    <h3 className="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2"><Users size={24} className="text-bigRed" /> Adicionar à Equipe</h3>
                     <button onClick={() => { setIsStaffModalOpen(false); setStaffSearchTerm(''); }} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"><X size={24} /></button>
                 </div>
 
-                <div className="p-4 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700">
+                {/* Day Filter Tabs */}
+                <div className="bg-gray-100 dark:bg-gray-900 px-2 flex overflow-x-auto scrollbar-hide border-b border-gray-200 dark:border-gray-700">
+                    {modalDays.map(day => (
+                        <button
+                            key={day.key}
+                            onClick={() => setModalDayFilter(day.key)}
+                            className={`px-4 py-3 text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap relative
+                                ${modalDayFilter === day.key 
+                                    ? 'text-bigRed border-b-2 border-bigRed' 
+                                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                                }
+                            `}
+                        >
+                            {day.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 space-y-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
                       type="text" 
-                      placeholder="Pesquisar funcionário (Cozinha, Atendente, Motoboy)..." 
-                      className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-bigRed"
+                      placeholder="Pesquisar por nome..." 
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-bigRed"
                       value={staffSearchTerm}
                       onChange={(e) => setStaffSearchTerm(e.target.value)}
                     />
                   </div>
+
+                  {modalDayFilter !== 'todos' && availableStaffForPayments.length > 0 && (
+                    <button 
+                        onClick={handleBulkAddFromSchedule}
+                        className="w-full py-2 bg-bigRed/10 hover:bg-bigRed/20 text-bigRed text-xs font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all"
+                    >
+                        <ListChecks size={16} /> Selecionar Todos de {modalDays.find(d => d.key === modalDayFilter)?.label}
+                    </button>
+                  )}
                 </div>
                 
-                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar bg-gray-50/30 dark:bg-gray-900/20">
                     {availableStaffForPayments.length === 0 ? (
                       <div className="text-center py-12">
                           <AlertCircle className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                          <p className="text-gray-400 text-sm italic">Nenhum funcionário disponível para adicionar.</p>
+                          <p className="text-gray-400 text-sm italic">
+                            {modalDayFilter === 'todos' 
+                                ? 'Nenhum funcionário encontrado.' 
+                                : `Nenhum funcionário escalado para ${modalDays.find(d => d.key === modalDayFilter)?.label} disponível.`}
+                          </p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {availableStaffForPayments.map(staff => (
-                              <button key={staff.id} onClick={() => handleAddStaffToDaily(staff.id)} className="text-left bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-bigRed transition-all group flex justify-between items-center">
+                              <button key={staff.id} onClick={() => handleAddStaffToDaily(staff.id)} className="text-left bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-bigRed transition-all group flex justify-between items-center shadow-sm">
                                   <div>
                                       <p className="font-bold text-gray-800 dark:text-gray-100 group-hover:text-bigRed transition-colors">{staff.name}</p>
                                       <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{staff.role}</p>
                                   </div>
-                                  <ArrowRight size={16} className="text-gray-200 group-hover:text-bigRed transition-colors" />
+                                  <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg group-hover:bg-bigRed/10 transition-colors">
+                                    <Plus size={16} className="text-gray-300 group-hover:text-bigRed" />
+                                  </div>
                               </button>
                           ))}
                       </div>

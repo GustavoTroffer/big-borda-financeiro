@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getRecordByDate, getStaff, getRecords, deleteRecord } from '../services/storageService';
 import { StaffMember, DailyCloseRecord, AuditEntry } from '../types';
 import { generateFinancialSummary } from '../services/geminiService';
-import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt } from 'lucide-react';
+import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt, StickyNote } from 'lucide-react';
 
 interface ReportsProps {
   isVisible: boolean;
@@ -263,6 +263,16 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                                 </tfoot>
                             </table>
                         </div>
+
+                        {/* EXIBIÇÃO DAS OBSERVAÇÕES NO RELATÓRIO */}
+                        {record.notes && (
+                            <div className="print-break-inside-avoid">
+                                <h3 className="text-xs font-black text-white bg-gray-800 px-3 py-2 rounded-t-lg uppercase flex items-center gap-2"><StickyNote size={14}/> Observações do Dia</h3>
+                                <div className="p-4 border border-gray-100 bg-gray-50/50 text-sm text-gray-700 whitespace-pre-wrap italic">
+                                    {record.notes}
+                                </div>
+                            </div>
+                        )}
                     </div>
                   </div>
               )}

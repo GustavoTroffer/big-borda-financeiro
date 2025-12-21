@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { DailyCloseRecord, StaffMember } from '../types';
 
@@ -33,9 +34,9 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
   text += `👤 *Responsável:* ${attendantName}\n\n`;
 
   text += `💰 *VENDAS TOTAIS: ${formatCurrency(totalSales)}*\n`;
-  text += `🔹 iFood: ${formatCurrency(ifood)}\n`;
-  text += `🔹 KCMS: ${formatCurrency(kcms)}\n`;
-  text += `🔹 SGV: ${formatCurrency(sgv)}\n\n`;
+  text += `🔸 *iFood:* ${formatCurrency(ifood)}\n`;
+  text += `🔸 *KCMS:* ${formatCurrency(kcms)}\n`;
+  text += `🔸 *SGV:* ${formatCurrency(sgv)}\n\n`;
 
   if (ifoodMotoboyCost > 0) {
       text += `🏍️ *MOTOBOTY IFOOD (INFO): ${formatCurrency(ifoodMotoboyCost)}*\n`;
@@ -103,22 +104,29 @@ export const generateFinancialSummary = async (
     const ifoodMotoboyCost = record.ifoodMotoboys?.totalCost || 0;
 
     const sales = record.sales;
-    const totalSales = (sales.ifood || 0) + (sales.kcms || 0) + (sales.sgv || 0);
+    const ifood = sales.ifood || 0;
+    const kcms = sales.kcms || 0;
+    const sgv = sales.sgv || 0;
+    const totalSales = ifood + kcms + sgv;
     const totalStaffPayments = record.payments.reduce((acc, curr) => acc + curr.amount, 0);
-    const finalBalance = totalSales; // Não desconta nada
+    const finalBalance = totalSales; 
 
     const attendantName = record.closedByStaffId 
       ? staffList.find(s => s.id === record.closedByStaffId)?.name || 'Não identificado'
       : 'Não informado';
 
-    const systemInstruction = "Você é um assistente financeiro do 'Big Borda Gourmet'. Gere resumos para WhatsApp claros e profissionais. Use 'PENDÊNCIAS' para o que o restaurante deve pagar (equipe/fornecedores de outros dias) e 'FIADO' para o que tem a receber de clientes. Regra importante: O saldo final deve ser exatamente o total das vendas brutas.";
+    const systemInstruction = "Você é um assistente financeiro do 'Big Borda Gourmet'. Gere resumos para WhatsApp claros e profissionais. Você DEVE obrigatoriamente mostrar o faturamento detalhado por aplicativo (iFood, KCMS e SGV). Use 'PENDÊNCIAS' para o que o restaurante deve pagar (equipe/fornecedores de outros dias) e 'FIADO' para o que tem a receber de clientes. Regra importante: O saldo final deve ser exatamente o total das vendas brutas.";
 
     const contentPrompt = `
-      Gere um relatório de fechamento:
+      Gere um relatório de fechamento detalhando os aplicativos:
       DATA: ${record.date.split('-').reverse().join('/')}
       RESPONSÁVEL: ${attendantName}
       
-      ENTRADAS (TOTAL VENDAS): R$ ${totalSales.toFixed(2)}
+      DETALHAMENTO DE VENDAS:
+      - iFood: R$ ${ifood.toFixed(2)}
+      - KCMS: R$ ${kcms.toFixed(2)}
+      - SGV: R$ ${sgv.toFixed(2)}
+      TOTAL VENDAS: R$ ${totalSales.toFixed(2)}
       
       INFORMAÇÕES DE MOTOBOYS IFOOD:
       - Corridas (${ifoodMotoboyCount} entregas): R$ ${ifoodMotoboyCost.toFixed(2)}
@@ -137,7 +145,7 @@ export const generateFinancialSummary = async (
       
       OBSERVAÇÕES: ${record.notes || 'Nenhuma'}
       
-      Formate com emojis e mantenha os nomes 'FIADO' e 'PENDÊNCIAS'.
+      Formate com emojis e certifique-se de listar as vendas de iFood, KCMS e SGV separadamente no texto.
     `;
 
     const response = await ai.models.generateContent({
