@@ -2,19 +2,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DailyCloseRecord, StaffMember, DailySales, DebtItem, PendingItem, StaffRole, StaffShift, AuditEntry, WeeklySchedule, DayOfWeek } from '../types';
 import { getStaff, getRecordByDate, upsertRecord, generateId, getWeeklySchedule, getRecords } from '../services/storageService';
-import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound, StickyNote, Filter, ListChecks } from 'lucide-react';
+import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound, StickyNote, Filter, ListChecks, History } from 'lucide-react';
 
 interface DailyCloseProps {
   isVisible: boolean;
+  initialDate?: string | null;
 }
 
-const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
+const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
   // Garantir que a data seja 'hoje' no fuso local (YYYY-MM-DD)
   const getTodayLocalDate = () => {
     return new Date().toLocaleDateString('en-CA');
   };
 
-  const [date, setDate] = useState<string>(getTodayLocalDate());
+  const today = getTodayLocalDate();
+  const [date, setDate] = useState<string>(initialDate || today);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule | null>(null);
   
@@ -52,6 +54,24 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
   const [newPendingName, setNewPendingName] = useState('');
   const [newPendingAmount, setNewPendingAmount] = useState('');
   const [newPendingDate, setNewPendingDate] = useState<string>('');
+
+  // Determine theme based on date
+  const isHistoryDate = date !== today;
+  const themeColor = isHistoryDate ? 'blue-600' : 'bigRed';
+  const themeAccent = isHistoryDate ? 'blue-400' : 'bigYellow';
+  const themeBg = isHistoryDate ? 'bg-blue-600' : 'bg-bigRed';
+  const themeText = isHistoryDate ? 'text-blue-600' : 'text-bigRed';
+  const themeBorder = isHistoryDate ? 'border-blue-600' : 'border-bigRed';
+  const themeRing = isHistoryDate ? 'focus:ring-blue-600' : 'focus:ring-bigRed';
+  const themeGradient = isHistoryDate ? 'from-blue-600 to-blue-800' : 'from-bigRed to-red-800';
+
+  useEffect(() => {
+    if (initialDate) {
+        setDate(initialDate);
+    } else {
+        setDate(today);
+    }
+  }, [initialDate]);
 
   // Efeito 1: Sincroniza apenas listas externas (Funcionários e Escala) ao abrir a aba
   useEffect(() => {
@@ -307,12 +327,17 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
     <div className="max-w-5xl mx-auto pb-32 md:pb-12 px-4 md:px-0">
       
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-8 transition-colors">
+      <div className={`bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-8 transition-colors ${isHistoryDate ? 'border-l-8 border-l-blue-600' : ''}`}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
             <div>
-              <h2 className="text-2xl font-black text-bigRed dark:text-red-400 tracking-tight">Fechamento de Caixa</h2>
-              <p className="text-gray-400 dark:text-gray-500 text-sm">Controle diário financeiro</p>
+              <h2 className={`text-2xl font-black ${isHistoryDate ? 'text-blue-600 dark:text-blue-400' : 'text-bigRed dark:text-red-400'} tracking-tight flex items-center gap-2`}>
+                {isHistoryDate && <History size={24} />}
+                {isHistoryDate ? 'Alteração de Histórico' : 'Fechamento de Caixa'}
+              </h2>
+              <p className="text-gray-400 dark:text-gray-500 text-sm">
+                {isHistoryDate ? 'Editando data passada' : 'Controle diário financeiro'}
+              </p>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -320,7 +345,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
               onClick={() => setIsClosingStaffModalOpen(true)}
               className={`flex items-center gap-3 bg-gray-50 dark:bg-gray-700 p-2.5 rounded-lg border hover:bg-gray-100 dark:hover:bg-gray-600 transition-all text-left w-full md:w-64 ${!closingStaffId ? 'border-red-300 animate-pulse' : 'border-gray-200 dark:border-gray-600'}`}
             >
-              <UserCheck className={`w-5 h-5 ml-1 ${!closingStaffId ? 'text-red-500' : 'text-bigRed dark:text-red-400'}`} />
+              <UserCheck className={`w-5 h-5 ml-1 ${!closingStaffId ? 'text-red-500' : isHistoryDate ? 'text-blue-600 dark:text-blue-400' : 'text-bigRed dark:text-red-400'}`} />
               <div className="flex flex-col flex-1 truncate">
                 <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest leading-none mb-1">Responsável</span>
                 <span className={`font-bold text-sm ${!closingStaffId ? 'text-gray-400 italic' : 'text-gray-800 dark:text-white'}`}>
@@ -330,9 +355,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
               <ArrowRight size={14} className="text-gray-300" />
             </button>
 
-            <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 w-full md:w-auto opacity-80 cursor-default">
-              <Calendar className="w-5 h-5 text-bigRed dark:text-red-400" />
-              <span className="font-bold text-gray-700 dark:text-gray-200">
+            <div className={`flex items-center gap-3 ${isHistoryDate ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-700'} px-4 py-2 rounded-lg border ${isHistoryDate ? 'border-blue-200 dark:border-blue-800' : 'border-gray-200 dark:border-gray-600'} w-full md:w-auto opacity-80 cursor-default`}>
+              <Calendar className={`w-5 h-5 ${isHistoryDate ? 'text-blue-600 dark:text-blue-400' : 'text-bigRed dark:text-red-400'}`} />
+              <span className={`font-black ${isHistoryDate ? 'text-blue-700 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}>
                 {date.split('-').reverse().join('/')}
               </span>
             </div>
@@ -343,9 +368,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Coluna Esquerda */}
         <div className="space-y-6">
-          <div className={`${cardClass} border-t-4 border-t-bigYellow`}>
+          <div className={`${cardClass} border-t-4 ${isHistoryDate ? 'border-t-blue-400' : 'border-t-bigYellow'}`}>
             <div className={sectionHeaderClass}>
-              <div className="p-1.5 bg-bigYellow/10 dark:bg-bigYellow/20 rounded text-bigYellow"><DollarSign size={18} /></div>
+              <div className={`p-1.5 ${isHistoryDate ? 'bg-blue-400/10 text-blue-400' : 'bg-bigYellow/10 text-bigYellow'} rounded`}><DollarSign size={18} /></div>
               <h3 className={sectionTitleClass}>Entradas (Vendas)</h3>
             </div>
             <div className="p-6 space-y-5">
@@ -353,21 +378,21 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                 <div key={item.label}>
                   <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 ml-1">{item.label}</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bigYellow/70 font-sans text-sm font-bold">R$</span>
-                    <input type="number" step="0.01" className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-100 text-sm focus:ring-2 focus:ring-bigYellow outline-none transition-all placeholder-gray-400" value={item.value || ''} onChange={(e) => handleSalesChange(item.key, e.target.value)} onWheel={(e) => e.currentTarget.blur()} placeholder="0,00" />
+                    <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isHistoryDate ? 'text-blue-400' : 'text-bigYellow'} font-sans text-sm font-bold`}>R$</span>
+                    <input type="number" step="0.01" className={`w-full pl-10 pr-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-100 text-sm focus:ring-2 ${isHistoryDate ? 'focus:ring-blue-400' : 'focus:ring-bigYellow'} outline-none transition-all placeholder-gray-400`} value={item.value || ''} onChange={(e) => handleSalesChange(item.key, e.target.value)} onWheel={(e) => e.currentTarget.blur()} placeholder="0,00" />
                   </div>
                 </div>
               ))}
             </div>
-            <div className="bg-bigYellow/5 dark:bg-bigYellow/10 px-6 py-4 flex justify-between items-center border-t border-bigYellow/10 dark:border-bigYellow/20">
+            <div className={`${isHistoryDate ? 'bg-blue-400/5' : 'bg-bigYellow/5 dark:bg-bigYellow/10'} px-6 py-4 flex justify-between items-center border-t ${isHistoryDate ? 'border-blue-400/10' : 'border-bigYellow/10'}`}>
               <span className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Total Vendas</span>
-              <div className="text-xl font-bold text-bigYellow bg-white dark:bg-gray-700 px-3 py-1 rounded shadow-sm border border-bigYellow/20">R$ {totalSales.toFixed(2)}</div>
+              <div className={`text-xl font-bold ${isHistoryDate ? 'text-blue-600' : 'text-bigYellow'} bg-white dark:bg-gray-700 px-3 py-1 rounded shadow-sm border ${isHistoryDate ? 'border-blue-400/20' : 'border-bigYellow/20'}`}>R$ {totalSales.toFixed(2)}</div>
             </div>
           </div>
 
-          <div className={`${cardClass} border-t-4 border-t-bigRed`}>
+          <div className={`${cardClass} border-t-4 ${themeBorder}`}>
             <div className={sectionHeaderClass}>
-              <div className="p-1.5 bg-bigRed/10 dark:bg-bigRed/20 rounded text-bigRed"><Bike size={18} /></div>
+              <div className={`p-1.5 ${isHistoryDate ? 'bg-blue-600/10 text-blue-600' : 'bg-bigRed/10 text-bigRed'} rounded`}><Bike size={18} /></div>
               <div>
                   <h3 className={sectionTitleClass}>Motoboy iFood</h3>
                   <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wide">Entregas Avulsas</p>
@@ -376,10 +401,10 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
             <div className="p-6">
                 <div className="flex gap-2 mb-6">
                     <div className="relative flex-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-bigRed/50 text-sm">R$</span>
-                        <input type="number" step="0.01" placeholder="Valor da Corrida" className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-bigRed outline-none" value={currentRideCost} onChange={(e) => setCurrentRideCost(e.target.value)} onBlur={(e) => handleBlurCurrency(setCurrentRideCost, e.target.value)} />
+                        <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isHistoryDate ? 'text-blue-600/50' : 'text-bigRed/50'} text-sm`}>R$</span>
+                        <input type="number" step="0.01" placeholder="Valor da Corrida" className={`w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 ${themeRing} outline-none`} value={currentRideCost} onChange={(e) => setCurrentRideCost(e.target.value)} onBlur={(e) => handleBlurCurrency(setCurrentRideCost, e.target.value)} />
                     </div>
-                    <button onClick={handleAddIfoodRide} className="bg-bigRed text-white p-2 px-4 rounded-lg hover:bg-red-800 transition-colors shadow-sm flex items-center gap-1 font-bold">
+                    <button onClick={handleAddIfoodRide} className={`${themeBg} text-white p-2 px-4 rounded-lg hover:brightness-90 transition-colors shadow-sm flex items-center gap-1 font-bold`}>
                         <Plus size={18} /> Lançar
                     </button>
                 </div>
@@ -388,41 +413,41 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                     {ifoodRides.length === 0 ? (
                         <p className="text-center py-4 text-gray-400 text-xs italic">Nenhuma entrega avulsa lançada.</p>
                     ) : ifoodRides.map((ride, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600">
+                        <div key={idx} className={`flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600 ${isHistoryDate ? 'hover:border-blue-300' : ''}`}>
                             <span className="text-gray-600 dark:text-gray-300 font-bold text-xs uppercase tracking-tighter">Corrida #{idx + 1}</span>
                             <div className="flex items-center gap-3">
-                                <span className="font-mono font-bold text-bigRed text-sm">R$ {ride.toFixed(2)}</span>
+                                <span className={`font-mono font-bold ${themeText} text-sm`}>R$ {ride.toFixed(2)}</span>
                                 <button onClick={() => removeIfoodRide(idx)} className="text-gray-300 hover:text-red-500 transition-colors p-1.5"><X size={16} /></button>
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
-            <div className="bg-bigRed/5 dark:bg-bigRed/10 px-6 py-4 flex justify-between items-center border-t border-bigRed/10">
+            <div className={`${isHistoryDate ? 'bg-blue-600/5' : 'bg-bigRed/5 dark:bg-bigRed/10'} px-6 py-4 flex justify-between items-center border-t ${isHistoryDate ? 'border-blue-600/10' : 'border-bigRed/10'}`}>
                 <div className="flex flex-col">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Avulsos</span>
                     <span className="text-xs font-bold text-gray-600 dark:text-gray-400">{ifoodRides.length} Entregas</span>
                 </div>
-                <div className="text-lg font-bold text-bigRed">R$ {ifoodMotoboyTotalCost.toFixed(2)}</div>
+                <div className={`text-lg font-bold ${themeText}`}>R$ {ifoodMotoboyTotalCost.toFixed(2)}</div>
             </div>
           </div>
         </div>
 
         {/* Coluna Direita */}
         <div className="space-y-6">
-          <div className={`${cardClass} border-t-4 border-t-bigRed`}>
+          <div className={`${cardClass} border-t-4 ${themeBorder}`}>
             <div className={sectionHeaderClass}>
-              <div className="p-1.5 bg-bigRed/10 dark:bg-bigRed/20 rounded text-bigRed"><Users size={18} /></div>
+              <div className={`p-1.5 ${isHistoryDate ? 'bg-blue-600/10 text-blue-600' : 'bg-bigRed/10 text-bigRed'} rounded`}><Users size={18} /></div>
               <h3 className={sectionTitleClass}>Pagamentos (Equipe)</h3>
             </div>
             <div className="p-6">
-                <button onClick={() => setIsStaffModalOpen(true)} className="w-full py-3 bg-gray-50 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-bigRed transition-all flex items-center justify-center gap-2 group mb-6"><Plus /> Adicionar Funcionário</button>
+                <button onClick={() => setIsStaffModalOpen(true)} className={`w-full py-3 bg-gray-50 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-600 ${isHistoryDate ? 'hover:text-blue-600' : 'hover:text-bigRed'} transition-all flex items-center justify-center gap-2 group mb-6`}><Plus /> Adicionar Funcionário</button>
                 <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
                     {activeStaffIds.length === 0 ? (<div className="text-center py-8 text-gray-400 text-sm">Nenhum pagamento hoje.</div>) : activeStaffIds.map(staffId => {
                         const staff = staffList.find(s => s.id === staffId);
                         if (!staff) return null;
                         return (
-                            <div key={staff.id} className="bg-white dark:bg-gray-700 p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-between gap-3 group">
+                            <div key={staff.id} className={`bg-white dark:bg-gray-700 p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-between gap-3 group ${isHistoryDate ? 'hover:border-blue-200' : ''}`}>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate flex items-center gap-2">
                                     {staff.name}
@@ -440,7 +465,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                                         </div>
                                     )}
                                     <div className="relative w-28">
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-bigRed/70 text-xs font-bold">R$</span>
+                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 ${isHistoryDate ? 'text-blue-600/70' : 'text-bigRed/70'} text-xs font-bold`}>R$</span>
                                         <input type="number" step="0.01" className="w-full pl-8 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-100 font-medium text-right outline-none" value={payments[staff.id] || ''} onChange={(e) => handlePaymentChange(staff.id, e.target.value)} />
                                     </div>
                                     <button onClick={() => handleRemoveStaffFromDaily(staff.id)} className="text-gray-300 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={16} /></button>
@@ -452,25 +477,25 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
             </div>
           </div>
 
-          <div className={`${cardClass} border-t-4 border-t-bigYellow`}>
+          <div className={`${cardClass} border-t-4 ${isHistoryDate ? 'border-t-blue-400' : 'border-t-bigYellow'}`}>
             <div className={sectionHeaderClass}>
-              <div className="p-1.5 bg-bigYellow/10 dark:bg-bigYellow/20 rounded text-bigYellow"><UserMinus size={18} /></div>
+              <div className={`p-1.5 ${isHistoryDate ? 'bg-blue-400/10 text-blue-400' : 'bg-bigYellow/10 text-bigYellow'} rounded`}><UserMinus size={18} /></div>
               <div><h3 className={sectionTitleClass}>Fiado</h3><p className="text-[10px] text-gray-400 uppercase font-bold tracking-wide">Receber Futuramente</p></div>
             </div>
             <div className="p-6">
                <div className="flex gap-2 mb-6">
-                  <input type="text" placeholder="Nome" className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-bigYellow outline-none placeholder-gray-400 dark:placeholder-gray-500 text-gray-800 dark:text-gray-100" value={newDebtName} onChange={(e) => setNewDebtName(e.target.value)} />
+                  <input type="text" placeholder="Nome" className={`flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 ${isHistoryDate ? 'focus:ring-blue-400' : 'focus:ring-bigYellow'} outline-none placeholder-gray-400 dark:placeholder-gray-500 text-gray-800 dark:text-gray-100`} value={newDebtName} onChange={(e) => setNewDebtName(e.target.value)} />
                   <div className="relative w-28">
-                      <input type="number" step="0.01" placeholder="0,00" className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-right focus:ring-2 focus:ring-bigYellow outline-none font-medium" value={newDebtAmount} onChange={(e) => setNewDebtAmount(e.target.value)} onBlur={(e) => handleBlurCurrency(setNewDebtAmount, e.target.value)} />
+                      <input type="number" step="0.01" placeholder="0,00" className={`w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-right focus:ring-2 ${isHistoryDate ? 'focus:ring-blue-400' : 'focus:ring-bigYellow'} outline-none font-medium`} value={newDebtAmount} onChange={(e) => setNewDebtAmount(e.target.value)} onBlur={(e) => handleBlurCurrency(setNewDebtAmount, e.target.value)} />
                   </div>
-                  <button onClick={handleAddDebt} className="bg-bigYellow text-white p-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"><Plus size={18} /></button>
+                  <button onClick={handleAddDebt} className={`${isHistoryDate ? 'bg-blue-400' : 'bg-bigYellow'} text-white p-2 rounded-lg hover:brightness-90 transition-colors shadow-sm`}><Plus size={18} /></button>
               </div>
               <div className="space-y-2 max-h-[180px] overflow-y-auto custom-scrollbar">
                 {debts.map(debt => (
-                    <div key={debt.id} className="flex justify-between items-center bg-white dark:bg-gray-700 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600 hover:shadow-md transition-all">
+                    <div key={debt.id} className={`flex justify-between items-center bg-white dark:bg-gray-700 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600 hover:shadow-md transition-all ${isHistoryDate ? 'hover:border-blue-200' : ''}`}>
                         <span className="text-gray-700 dark:text-gray-200 font-medium text-sm pl-1">{debt.name}</span>
                         <div className="flex items-center gap-1">
-                            <span className="font-mono font-bold text-bigYellow text-sm mr-2">R$ {debt.amount.toFixed(2)}</span>
+                            <span className={`font-mono font-bold ${isHistoryDate ? 'text-blue-500' : 'text-bigYellow'} text-sm mr-2`}>R$ {debt.amount.toFixed(2)}</span>
                             <button onClick={(e) => deleteDebt(debt.id, e)} className="text-gray-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600"><Trash2 size={16} /></button>
                         </div>
                     </div>
@@ -479,41 +504,41 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
             </div>
           </div>
 
-          <div className={`${cardClass} border-t-4 border-t-bigRed`}>
+          <div className={`${cardClass} border-t-4 ${themeBorder}`}>
             <div className={sectionHeaderClass}>
-              <div className="p-1.5 bg-bigRed/10 dark:bg-bigRed/20 rounded text-bigRed"><Receipt size={18} /></div>
+              <div className={`p-1.5 ${isHistoryDate ? 'bg-blue-600/10 text-blue-600' : 'bg-bigRed/10 text-bigRed'} rounded`}><Receipt size={18} /></div>
               <div><h3 className={sectionTitleClass}>Pendências</h3><p className="text-[10px] text-gray-400 uppercase font-bold tracking-wide">Gastos com Equipe</p></div>
             </div>
             <div className="p-6">
-                <button onClick={() => setIsPendingModalOpen(true)} className="w-full mb-4 py-2 bg-gray-50 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-400 hover:text-bigRed transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => setIsPendingModalOpen(true)} className={`w-full mb-4 py-2 bg-gray-50 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-400 ${isHistoryDate ? 'hover:text-blue-600' : 'hover:text-bigRed'} transition-colors flex items-center justify-center gap-2`}>
                     <UserPlus size={14} /> Selecionar Funcionário
                 </button>
                 <div className="space-y-4 mb-6">
                     <div className="flex gap-2">
-                        <input type="text" placeholder="Nome" className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-bigRed outline-none text-gray-800 dark:text-gray-100" value={newPendingName} onChange={(e) => setNewPendingName(e.target.value)} />
+                        <input type="text" placeholder="Nome" className={`flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 ${themeRing} outline-none text-gray-800 dark:text-gray-100`} value={newPendingName} onChange={(e) => setNewPendingName(e.target.value)} />
                         <div className="relative w-28">
-                            <input type="number" step="0.01" placeholder="0,00" className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-right focus:ring-2 focus:ring-bigRed outline-none font-medium" value={newPendingAmount} onChange={(e) => setNewPendingAmount(e.target.value)} onBlur={(e) => handleBlurCurrency(setNewPendingAmount, e.target.value)} />
+                            <input type="number" step="0.01" placeholder="0,00" className={`w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-right focus:ring-2 ${themeRing} outline-none font-medium`} value={newPendingAmount} onChange={(e) => setNewPendingAmount(e.target.value)} onBlur={(e) => handleBlurCurrency(setNewPendingAmount, e.target.value)} />
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <div className="flex-1 flex items-center gap-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3">
+                        <div className={`flex-1 flex items-center gap-2 ${isHistoryDate ? 'bg-blue-50/50' : 'bg-gray-50'} dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3`}>
                             <span className="text-[10px] uppercase font-bold text-gray-400">Data Ref:</span>
                             <input type="date" className="bg-transparent border-none text-xs font-bold focus:ring-0 outline-none p-2 w-full" value={newPendingDate} onChange={(e) => setNewPendingDate(e.target.value)} />
                         </div>
-                        <button onClick={handleAddPending} className="bg-bigRed text-white p-2 px-6 rounded-lg hover:bg-red-800 transition-colors shadow-sm font-bold flex items-center gap-2"><Plus size={18} /> Lançar</button>
+                        <button onClick={handleAddPending} className={`${themeBg} text-white p-2 px-6 rounded-lg hover:brightness-90 transition-colors shadow-sm font-bold flex items-center gap-2`}><Plus size={18} /> Lançar</button>
                     </div>
                 </div>
                 <div className="space-y-2 max-h-[180px] overflow-y-auto custom-scrollbar">
                     {pendingPayables.length === 0 ? (
                         <p className="text-center py-4 text-gray-400 text-xs italic">Nenhuma pendência hoje.</p>
                     ) : pendingPayables.map(pending => (
-                        <div key={pending.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600">
+                        <div key={pending.id} className={`flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600 ${isHistoryDate ? 'hover:border-blue-200' : ''}`}>
                             <div className="flex flex-col">
                                 <span className="text-gray-700 dark:text-gray-200 font-bold text-sm pl-1">{pending.name}</span>
-                                {pending.date && <span className="text-[9px] text-bigRed pl-1 uppercase font-black tracking-widest">Referente: {pending.date.split('-').reverse().join('/')}</span>}
+                                {pending.date && <span className={`text-[9px] ${themeText} pl-1 uppercase font-black tracking-widest`}>Referente: {pending.date.split('-').reverse().join('/')}</span>}
                             </div>
                             <div className="flex items-center gap-1">
-                                <span className="font-mono font-bold text-bigRed text-sm mr-2">R$ {pending.amount.toFixed(2)}</span>
+                                <span className={`font-mono font-bold ${themeText} text-sm mr-2`}>R$ {pending.amount.toFixed(2)}</span>
                                 <button onClick={(e) => deletePending(pending.id, e)} className="text-gray-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600"><Trash2 size={16} /></button>
                             </div>
                         </div>
@@ -533,7 +558,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         <div className="p-6">
           <textarea
             placeholder="Digite aqui observações importantes, ocorrências ou detalhes sobre o fechamento..."
-            className="w-full h-32 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-gray-400 outline-none transition-all resize-none text-gray-700 dark:text-gray-100"
+            className={`w-full h-32 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-2 ${isHistoryDate ? 'focus:ring-blue-400' : 'focus:ring-gray-400'} outline-none transition-all resize-none text-gray-700 dark:text-gray-100`}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
@@ -546,9 +571,9 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         
         <button 
             onClick={performFinalSave} 
-            className="bg-gradient-to-r from-bigRed to-red-800 text-white px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-3 font-bold text-lg flex-1 md:flex-none justify-center"
+            className={`bg-gradient-to-r ${themeGradient} text-white px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-3 font-bold text-lg flex-1 md:flex-none justify-center`}
         >
-            <Save size={20} /> Salvar Fechamento
+            <Save size={20} /> {isHistoryDate ? 'Atualizar Histórico' : 'Salvar Fechamento'}
         </button>
       </div>
 
@@ -558,7 +583,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-bigRed/10 rounded-lg"><UserRound className="text-bigRed" size={24} /></div>
+                        <div className={`p-2 ${isHistoryDate ? 'bg-blue-100' : 'bg-bigRed/10'} rounded-lg`}><UserRound className={isHistoryDate ? 'text-blue-600' : 'text-bigRed'} size={24} /></div>
                         <div>
                             <h3 className="text-xl font-black text-gray-800 dark:text-white leading-none">Quem está fechando?</h3>
                             <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mt-1">Apenas Atendentes</p>
@@ -573,7 +598,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                     <input 
                       type="text" 
                       placeholder="Pesquisar atendente..." 
-                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-bigRed"
+                      className={`w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:ring-2 ${themeRing}`}
                       value={closingSearchTerm}
                       onChange={(e) => setClosingSearchTerm(e.target.value)}
                       autoFocus
@@ -593,15 +618,15 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                               <button 
                                 key={staff.id} 
                                 onClick={() => { setClosingStaffId(staff.id); setIsClosingStaffModalOpen(false); setClosingSearchTerm(''); }} 
-                                className={`text-left p-4 rounded-xl border transition-all flex justify-between items-center group ${closingStaffId === staff.id ? 'bg-bigRed/5 border-bigRed ring-1 ring-bigRed' : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-bigRed'}`}
+                                className={`text-left p-4 rounded-xl border transition-all flex justify-between items-center group ${closingStaffId === staff.id ? `${isHistoryDate ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-bigRed/5 border-bigRed ring-1 ring-bigRed'}` : `bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 ${isHistoryDate ? 'hover:border-blue-600' : 'hover:border-bigRed'}`}`}
                               >
                                   <div className="flex items-center gap-3">
-                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${closingStaffId === staff.id ? 'bg-bigRed text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400'}`}>
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${closingStaffId === staff.id ? `${isHistoryDate ? 'bg-blue-600' : 'bg-bigRed'} text-white` : 'bg-gray-100 dark:bg-gray-800 text-gray-400'}`}>
                                           {staff.name.charAt(0).toUpperCase()}
                                       </div>
-                                      <span className={`font-bold ${closingStaffId === staff.id ? 'text-bigRed' : 'text-gray-800 dark:text-gray-100'}`}>{staff.name}</span>
+                                      <span className={`font-bold ${closingStaffId === staff.id ? `${isHistoryDate ? 'text-blue-600' : 'text-bigRed'}` : 'text-gray-800 dark:text-gray-100'}`}>{staff.name}</span>
                                   </div>
-                                  {closingStaffId === staff.id ? <Check size={18} className="text-bigRed" /> : <ArrowRight size={16} className="text-gray-200 group-hover:text-bigRed" />}
+                                  {closingStaffId === staff.id ? <Check size={18} className={isHistoryDate ? 'text-blue-600' : 'text-bigRed'} /> : <ArrowRight size={16} className={`text-gray-200 ${isHistoryDate ? 'group-hover:text-blue-600' : 'group-hover:text-bigRed'}`} />}
                               </button>
                           ))}
                       </div>
@@ -616,7 +641,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
-                    <h3 className="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2"><Users size={24} className="text-bigRed" /> Adicionar à Equipe</h3>
+                    <h3 className="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2"><Users size={24} className={isHistoryDate ? 'text-blue-600' : 'text-bigRed'} /> Adicionar à Equipe</h3>
                     <button onClick={() => { setIsStaffModalOpen(false); setStaffSearchTerm(''); setSelectedInModal([]); }} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"><X size={24} /></button>
                 </div>
 
@@ -628,7 +653,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                             onClick={() => setModalDayFilter(day.key)}
                             className={`px-4 py-3 text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap relative
                                 ${modalDayFilter === day.key 
-                                    ? 'text-bigRed border-b-2 border-bigRed' 
+                                    ? `${isHistoryDate ? 'text-blue-600 border-blue-600' : 'text-bigRed border-bigRed'} border-b-2` 
                                     : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                                 }
                             `}
@@ -644,7 +669,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                     <input 
                       type="text" 
                       placeholder="Pesquisar por nome..." 
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-bigRed"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 ${themeRing}`}
                       value={staffSearchTerm}
                       onChange={(e) => setStaffSearchTerm(e.target.value)}
                     />
@@ -654,7 +679,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                     {modalDayFilter !== 'todos' && availableStaffForPayments.length > 0 && (
                       <button 
                           onClick={handleBulkAddFromSchedule}
-                          className="flex-1 py-2 bg-bigRed/10 hover:bg-bigRed/20 text-bigRed text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all"
+                          className={`flex-1 py-2 ${isHistoryDate ? 'bg-blue-600/10 text-blue-600 hover:bg-blue-600/20' : 'bg-bigRed/10 text-bigRed hover:bg-bigRed/20'} text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all`}
                       >
                           <ListChecks size={14} /> Selecionar Todos de {modalDays.find(d => d.key === modalDayFilter)?.label}
                       </button>
@@ -681,11 +706,11 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                                   key={staff.id} 
                                   onClick={() => toggleModalSelection(staff.id)} 
                                   className={`text-left p-4 rounded-xl border transition-all group flex justify-between items-center shadow-sm relative overflow-hidden
-                                      ${isSelected ? 'bg-bigRed/5 border-bigRed ring-1 ring-bigRed' : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-bigRed'}
+                                      ${isSelected ? `${isHistoryDate ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-bigRed/5 border-bigRed ring-1 ring-bigRed'}` : `bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 ${isHistoryDate ? 'hover:border-blue-600' : 'hover:border-bigRed'}`}
                                   `}
                                 >
                                     <div>
-                                        <p className={`font-bold transition-colors flex items-center gap-2 ${isSelected ? 'text-bigRed' : 'text-gray-800 dark:text-gray-100'}`}>
+                                        <p className={`font-bold transition-colors flex items-center gap-2 ${isSelected ? `${isHistoryDate ? 'text-blue-600' : 'text-bigRed'}` : 'text-gray-800 dark:text-gray-100'}`}>
                                           {staff.name}
                                           <span className={`text-[8px] px-1 py-0.5 rounded-full font-black uppercase tracking-widest ${staff.shift === StaffShift.DIURNO ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
                                             {staff.shift}
@@ -693,7 +718,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                                         </p>
                                         <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{staff.role}</p>
                                     </div>
-                                    <div className={`p-1.5 rounded-lg transition-colors ${isSelected ? 'bg-bigRed text-white' : 'bg-gray-50 dark:bg-gray-800 group-hover:bg-bigRed/10 text-gray-300 group-hover:text-bigRed'}`}>
+                                    <div className={`p-1.5 rounded-lg transition-colors ${isSelected ? `${isHistoryDate ? 'bg-blue-600' : 'bg-bigRed'} text-white` : `bg-gray-50 dark:bg-gray-800 ${isHistoryDate ? 'group-hover:bg-blue-600/10 group-hover:text-blue-600' : 'group-hover:bg-bigRed/10 group-hover:text-bigRed'} text-gray-300`}`}>
                                       {isSelected ? <Check size={16} /> : <Plus size={16} />}
                                     </div>
                                 </button>
@@ -707,7 +732,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                   <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
                       <button 
                         onClick={handleAddSelectedToDaily} 
-                        className="w-full bg-bigRed text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-red-800 transition-colors"
+                        className={`w-full ${themeBg} text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:brightness-90 transition-colors`}
                       >
                         <UserPlus size={20} /> Adicionar {selectedInModal.length} Selecionados
                       </button>
@@ -732,7 +757,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                     <input 
                       type="text" 
                       placeholder="Pesquisar funcionário..." 
-                      className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-400"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:ring-2 ${isHistoryDate ? 'focus:ring-blue-400' : 'focus:ring-gray-400'}`}
                       value={pendingSearchTerm}
                       onChange={(e) => setPendingSearchTerm(e.target.value)}
                     />
@@ -742,12 +767,12 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-1 gap-2">
                         {filteredStaffForPending.map(staff => (
-                            <button key={staff.id} onClick={() => handleSelectPendingRecipient(staff.name)} className="text-left bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-gray-400 transition-all flex justify-between items-center group">
+                            <button key={staff.id} onClick={() => handleSelectPendingRecipient(staff.name)} className={`text-left bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 ${isHistoryDate ? 'hover:border-blue-400' : 'hover:border-gray-400'} transition-all flex justify-between items-center group`}>
                                 <div>
                                     <p className="font-bold text-gray-800 dark:text-gray-100">{staff.name}</p>
                                     <p className="text-[10px] text-gray-400 uppercase font-black">{staff.role}</p>
                                 </div>
-                                <ArrowRight size={16} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+                                <ArrowRight size={16} className={`text-gray-300 ${isHistoryDate ? 'group-hover:text-blue-600' : 'group-hover:text-gray-600'} transition-colors`} />
                             </button>
                         ))}
                     </div>

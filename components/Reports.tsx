@@ -1,16 +1,31 @@
 
 import React, { useState, useEffect } from 'react';
 import { getRecordByDate, getStaff, getRecords, deleteRecord } from '../services/storageService';
-// Import StaffShift to fix the reference error on line 264
+// Import StaffShift to fix the reference error
 import { StaffMember, DailyCloseRecord, AuditEntry, StaffShift } from '../types';
 import { generateFinancialSummary } from '../services/geminiService';
-import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt, StickyNote } from 'lucide-react';
+import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt, StickyNote, BarChart3, Filter, ChevronDown, Pencil, ExternalLink } from 'lucide-react';
 
 interface ReportsProps {
   isVisible: boolean;
+  onEditRecord?: (date: string) => void;
 }
 
-const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
+type PeriodType = 'custom' | 'weekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'annual';
+
+interface AggregatedSummary {
+  sales: { ifood: number; kcms: number; sgv: number };
+  totalSales: number;
+  totalPayments: number;
+  totalPending: number;
+  totalFiado: number;
+  ifoodMotoboyCost: number;
+  recordCount: number;
+  startDate: string;
+  endDate: string;
+}
+
+const Reports: React.FC<ReportsProps> = ({ isVisible, onEditRecord }) => {
   // Garantir fuso local
   const getTodayLocalDate = () => {
     return new Date().toLocaleDateString('en-CA');
@@ -26,6 +41,12 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
   const [activeTab, setActiveTab] = useState<'report' | 'history'>('report');
   const [historyRecords, setHistoryRecords] = useState<DailyCloseRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [specificDateSearch, setSpecificDateSearch] = useState('');
+
+  // Consolidation States
+  const [isConsolidating, setIsConsolidating] = useState(false);
+  const [periodType, setPeriodType] = useState<PeriodType>('monthly');
+  const [aggregatedData, setAggregatedData] = useState<AggregatedSummary | null>(null);
 
   useEffect(() => {
     if (isVisible) {
@@ -69,23 +90,85 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
       sgv: r.sales.sgv || (r.sales as any).app3 || 0,
   });
 
+  // Consolidation Logic
+  const handleConsolidate = () => {
+    if (historyRecords.length === 0) return;
+
+    const today = new Date();
+    let startDate = new Date();
+
+    switch (periodType) {
+      case 'weekly':
+        startDate.setDate(today.getDate() - 7);
+        break;
+      case 'monthly':
+        startDate.setMonth(today.getMonth() - 1);
+        break;
+      case 'bimonthly':
+        startDate.setMonth(today.getMonth() - 2);
+        break;
+      case 'quarterly':
+        startDate.setMonth(today.getMonth() - 3);
+        break;
+      case 'semiannual':
+        startDate.setMonth(today.getMonth() - 6);
+        break;
+      case 'annual':
+        startDate.setFullYear(today.getFullYear() - 1);
+        break;
+    }
+
+    const filtered = historyRecords.filter(r => {
+      const recordDate = new Date(r.date + 'T12:00:00');
+      return recordDate >= startDate && recordDate <= today;
+    });
+
+    if (filtered.length === 0) {
+      alert("Nenhum registro encontrado no período selecionado.");
+      return;
+    }
+
+    const summary: AggregatedSummary = {
+      sales: { ifood: 0, kcms: 0, sgv: 0 },
+      totalSales: 0,
+      totalPayments: 0,
+      totalPending: 0,
+      totalFiado: 0,
+      ifoodMotoboyCost: 0,
+      recordCount: filtered.length,
+      startDate: startDate.toLocaleDateString('en-CA'),
+      endDate: today.toLocaleDateString('en-CA')
+    };
+
+    filtered.forEach(r => {
+      const s = getSales(r);
+      summary.sales.ifood += s.ifood;
+      summary.sales.kcms += s.kcms;
+      summary.sales.sgv += s.sgv;
+      summary.totalSales += (s.ifood + s.kcms + s.sgv);
+      summary.totalPayments += r.payments.reduce((acc, curr) => acc + curr.amount, 0);
+      summary.totalPending += r.pendingPayables?.reduce((acc, curr) => acc + curr.amount, 0) || 0;
+      summary.totalFiado += r.debts.reduce((acc, curr) => acc + curr.amount, 0);
+      summary.ifoodMotoboyCost += r.ifoodMotoboys?.totalCost || 0;
+    });
+
+    setAggregatedData(summary);
+    setIsConsolidating(true);
+  };
+
+  const handleOpenSpecificDate = () => {
+    if (specificDateSearch && onEditRecord) {
+        onEditRecord(specificDateSearch);
+    }
+  };
+
   const salesData = record ? getSales(record) : { ifood: 0, kcms: 0, sgv: 0 };
   const totalSales = salesData.ifood + salesData.kcms + salesData.sgv;
-  
-  // Informação de Saída (Não deduz do caixa conforme pedido)
-  const ifoodMotoboyCost = record?.ifoodMotoboys?.totalCost || 0;
-  const ifoodMotoboyCount = record?.ifoodMotoboys?.count || 0;
-  
-  // Saldo do dia é o total bruto das vendas
   const balance = totalSales;
-  
   const totalStaffToPay = record ? record.payments.reduce((acc, curr) => acc + curr.amount, 0) : 0;
   const totalPendingToPay = record?.pendingPayables ? record.pendingPayables.reduce((acc, curr) => acc + curr.amount, 0) : 0;
   const totalFiado = record?.debts ? record.debts.reduce((acc, curr) => acc + curr.amount, 0) : 0;
-  
-  const attendantName = record?.closedByStaffId 
-    ? staffList.find(s => s.id === record.closedByStaffId)?.name 
-    : 'Não informado';
+  const attendantName = record?.closedByStaffId ? staffList.find(s => s.id === record.closedByStaffId)?.name : 'Não informado';
 
   const filteredHistory = historyRecords.filter(r => 
       r.date.includes(searchTerm) || 
@@ -95,7 +178,7 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto print:p-0 print:max-w-none">
       <div className="no-print flex gap-4 mb-6 border-b border-gray-200 dark:border-gray-700">
-        <button onClick={() => setActiveTab('report')} className={`pb-3 px-4 font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'report' ? 'text-bigRed border-b-4 border-bigRed' : 'text-gray-400 hover:text-gray-600'}`}>
+        <button onClick={() => { setActiveTab('report'); setIsConsolidating(false); }} className={`pb-3 px-4 font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'report' ? 'text-bigRed border-b-4 border-bigRed' : 'text-gray-400 hover:text-gray-600'}`}>
             <Calendar size={18} /> Relatório do Dia
         </button>
         <button onClick={() => setActiveTab('history')} className={`pb-3 px-4 font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'history' ? 'text-bigRed border-b-4 border-bigRed' : 'text-gray-400 hover:text-gray-600'}`}>
@@ -105,13 +188,117 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
 
       {activeTab === 'history' ? (
           <div className="no-print space-y-6">
+              {/* Consolidation Tool */}
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <div className="flex flex-col md:flex-row items-center gap-4">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-600">
+                              <BarChart3 size={24} />
+                          </div>
+                          <div>
+                              <h3 className="font-bold text-gray-800 dark:text-white leading-none">Concatenar Períodos</h3>
+                              <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mt-1">Análise Consolidada</p>
+                          </div>
+                      </div>
+                      
+                      <div className="flex-1 flex gap-2 w-full">
+                          <select 
+                            className="flex-1 p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-purple-400"
+                            value={periodType}
+                            onChange={(e) => setPeriodType(e.target.value as PeriodType)}
+                          >
+                              <option value="weekly">Semanal (7 dias)</option>
+                              <option value="monthly">Mensal (30 dias)</option>
+                              <option value="bimonthly">Bimestral (60 dias)</option>
+                              <option value="quarterly">Trimestral (90 dias)</option>
+                              <option value="semiannual">Semestral (180 dias)</option>
+                              <option value="annual">Anual (365 dias)</option>
+                          </select>
+                          <button 
+                            onClick={handleConsolidate}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md"
+                          >
+                            <Filter size={18} /> Gerar Consolidado
+                          </button>
+                      </div>
+                  </div>
+
+                  {isConsolidating && aggregatedData && (
+                      <div className="mt-6 p-6 bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 rounded-2xl animate-in zoom-in-95 duration-200">
+                          <div className="flex justify-between items-center mb-6">
+                              <h4 className="font-black text-purple-700 dark:text-purple-400 uppercase text-xs tracking-widest">Resultado do Período ({aggregatedData.recordCount} dias)</h4>
+                              <button onClick={() => setIsConsolidating(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-purple-900/20">
+                                  <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Vendas Brutas</span>
+                                  <span className="text-xl font-black text-purple-600">R$ {aggregatedData.totalSales.toFixed(2)}</span>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-purple-900/20">
+                                  <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Equipe</span>
+                                  <span className="text-xl font-black text-bigRed">R$ {aggregatedData.totalPayments.toFixed(2)}</span>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-purple-900/20">
+                                  <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Pendências</span>
+                                  <span className="text-xl font-black text-orange-500">R$ {aggregatedData.totalPending.toFixed(2)}</span>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-purple-100 dark:border-purple-900/20">
+                                  <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Fiado</span>
+                                  <span className="text-xl font-black text-bigYellow">R$ {aggregatedData.totalFiado.toFixed(2)}</span>
+                              </div>
+                          </div>
+
+                          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <div className="space-y-2">
+                                  <h5 className="text-[10px] font-black text-gray-500 uppercase">Detalhamento Vendas</h5>
+                                  <div className="text-xs space-y-1">
+                                      <div className="flex justify-between"><span>iFood</span><span className="font-bold">R$ {aggregatedData.sales.ifood.toFixed(2)}</span></div>
+                                      <div className="flex justify-between"><span>KCMS</span><span className="font-bold">R$ {aggregatedData.sales.kcms.toFixed(2)}</span></div>
+                                      <div className="flex justify-between"><span>SGV</span><span className="font-bold">R$ {aggregatedData.sales.sgv.toFixed(2)}</span></div>
+                                  </div>
+                              </div>
+                              <div className="space-y-2">
+                                  <h5 className="text-[10px] font-black text-gray-500 uppercase">Médias por Dia</h5>
+                                  <div className="text-xs space-y-1">
+                                      <div className="flex justify-between"><span>Venda Média</span><span className="font-bold">R$ {(aggregatedData.totalSales / aggregatedData.recordCount).toFixed(2)}</span></div>
+                                      <div className="flex justify-between"><span>Pagamento Médio</span><span className="font-bold">R$ {(aggregatedData.totalPayments / aggregatedData.recordCount).toFixed(2)}</span></div>
+                                  </div>
+                              </div>
+                              <div className="flex flex-col justify-end">
+                                  <button onClick={handlePrint} className="w-full bg-gray-800 dark:bg-gray-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><Printer size={16} /> Imprimir Consolidado</button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
+              </div>
+
               <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                  <div className="relative w-full md:w-96">
+                  <div className="relative w-full md:w-80">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                      <input type="text" placeholder="Filtrar histórico..." className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-bigYellow" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  </div>
+                  
+                  <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-200 dark:border-gray-700 w-full md:w-auto">
+                      <span className="text-[10px] uppercase font-black text-gray-400 px-2">Abrir data:</span>
+                      <input 
+                        type="date" 
+                        className="bg-transparent text-sm font-bold outline-none"
+                        value={specificDateSearch}
+                        onChange={(e) => setSpecificDateSearch(e.target.value)}
+                      />
+                      <button 
+                        onClick={handleOpenSpecificDate}
+                        disabled={!specificDateSearch}
+                        className="bg-bigRed text-white p-2 rounded-lg disabled:opacity-30 hover:bg-red-800 transition-colors"
+                        title="Abrir página de fechamento deste dia"
+                      >
+                        <ExternalLink size={16} />
+                      </button>
                   </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
                   <table className="w-full text-left">
                       <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 text-[10px] uppercase font-black tracking-widest border-b border-gray-100 dark:border-gray-700">
                           <tr>
@@ -132,7 +319,8 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                                       <td className="px-6 py-4 text-xs uppercase">{resp}</td>
                                       <td className="px-6 py-4 text-right font-mono font-black">R$ {tS.toFixed(2)}</td>
                                       <td className="px-6 py-4 text-right">
-                                          <div className="flex justify-end gap-2">
+                                          <div className="flex justify-end gap-1">
+                                              <button onClick={() => { if(onEditRecord) onEditRecord(r.date); }} className="p-2 text-gray-400 hover:text-blue-500" title="Editar Fechamento"><Pencil size={18} /></button>
                                               <button onClick={() => { setDate(r.date); setActiveTab('report'); }} className="p-2 text-gray-400 hover:text-bigYellow" title="Visualizar Relatório"><Printer size={18} /></button>
                                               <button onClick={() => handleDelete(r.date)} className="p-2 text-gray-400 hover:text-red-500" title="Excluir"><Trash2 size={18} /></button>
                                           </div>
@@ -142,13 +330,16 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                           })}
                       </tbody>
                   </table>
+                  {filteredHistory.length === 0 && (
+                      <div className="py-20 text-center text-gray-400 italic text-sm">Nenhum registro encontrado.</div>
+                  )}
               </div>
           </div>
       ) : (
+          /* Report Tab Content - Mantido conforme original */
           <div className="space-y-8">
               <div className="no-print flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 gap-4">
                 <div className="flex items-center gap-4">
-                    {/* Campo de data desabilitado para alteração manual no relatório, conforme solicitado */}
                     <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 opacity-80">
                       <Calendar size={18} className="text-bigRed" />
                       <span className="font-bold text-gray-700 dark:text-gray-200">
@@ -244,12 +435,12 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                     </div>
 
                     <div className="space-y-10">
-                        {ifoodMotoboyCost > 0 && (
+                        {record.ifoodMotoboys?.totalCost && record.ifoodMotoboys.totalCost > 0 && (
                             <div className="print-break-inside-avoid">
                                 <h3 className="text-xs font-black text-white bg-gray-600 px-3 py-2 rounded-t-lg uppercase flex items-center gap-2"><Bike size={14}/> Informação: Motoboys iFood</h3>
                                 <div className="p-4 border border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                                    <span className="text-sm font-bold text-gray-600 uppercase">{ifoodMotoboyCount} Entregas realizadas</span>
-                                    <span className="font-black font-mono text-lg">R$ {ifoodMotoboyCost.toFixed(2)}</span>
+                                    <span className="text-sm font-bold text-gray-600 uppercase">{record.ifoodMotoboys.count} Entregas realizadas</span>
+                                    <span className="font-black font-mono text-lg">R$ {record.ifoodMotoboys.totalCost.toFixed(2)}</span>
                                 </div>
                             </div>
                         )}
@@ -285,7 +476,6 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                             </table>
                         </div>
 
-                        {/* EXIBIÇÃO DAS OBSERVAÇÕES NO RELATÓRIO */}
                         {record.notes && (
                             <div className="print-break-inside-avoid">
                                 <h3 className="text-xs font-black text-white bg-gray-800 px-3 py-2 rounded-t-lg uppercase flex items-center gap-2"><StickyNote size={14}/> Observações do Dia</h3>

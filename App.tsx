@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ViewState } from './types';
 import DailyClose from './components/DailyClose';
@@ -8,6 +9,7 @@ import { Pizza, DollarSign, Users, FileText, Menu, X, Moon, Sun } from 'lucide-r
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('closing');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedClosingDate, setSelectedClosingDate] = useState<string | null>(null);
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -26,11 +28,17 @@ const App: React.FC = () => {
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-  const NavItem = ({ view, label, icon: Icon }: { view: ViewState; label: string; icon: any }) => (
+  const handleEditRecord = (date: string) => {
+    setSelectedClosingDate(date);
+    setCurrentView('closing');
+  };
+
+  const NavItem = ({ view, label, icon: Icon, onClick }: { view: ViewState; label: string; icon: any; onClick?: () => void }) => (
     <button
       onClick={() => {
         setCurrentView(view);
         setMobileMenuOpen(false);
+        if (onClick) onClick();
       }}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full md:w-auto transition-all duration-200
         ${currentView === view 
@@ -59,7 +67,7 @@ const App: React.FC = () => {
             </div>
 
             <nav className="hidden md:flex gap-2 items-center">
-              <NavItem view="closing" label="Fechamento" icon={DollarSign} />
+              <NavItem view="closing" label="Fechamento" icon={DollarSign} onClick={() => setSelectedClosingDate(null)} />
               <NavItem view="staff" label="Equipe" icon={Users} />
               <NavItem view="reports" label="Relatórios" icon={FileText} />
               <div className="w-px h-8 bg-white/20 mx-2"></div>
@@ -85,7 +93,7 @@ const App: React.FC = () => {
 
         {mobileMenuOpen && (
           <div className="md:hidden bg-red-900 dark:bg-red-950 px-4 py-4 space-y-2 border-t border-red-800 dark:border-red-900">
-            <NavItem view="closing" label="Fechamento do Dia" icon={DollarSign} />
+            <NavItem view="closing" label="Fechamento do Dia" icon={DollarSign} onClick={() => setSelectedClosingDate(null)} />
             <NavItem view="staff" label="Gerenciar Equipe" icon={Users} />
             <NavItem view="reports" label="Imprimir Relatórios" icon={FileText} />
           </div>
@@ -96,13 +104,14 @@ const App: React.FC = () => {
         <div className={currentView === 'closing' ? 'block animate-in fade-in duration-300' : 'hidden'}>
           <DailyClose 
             isVisible={currentView === 'closing'} 
+            initialDate={selectedClosingDate}
           />
         </div>
         <div className={currentView === 'staff' ? 'block animate-in fade-in duration-300' : 'hidden'}>
           <StaffManager />
         </div>
         <div className={currentView === 'reports' ? 'block animate-in fade-in duration-300' : 'hidden'}>
-          <Reports isVisible={currentView === 'reports'} />
+          <Reports isVisible={currentView === 'reports'} onEditRecord={handleEditRecord} />
         </div>
       </main>
 
