@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { DailyCloseRecord, StaffMember, DailySales, DebtItem, PendingItem, StaffRole, AuditEntry, WeeklySchedule, DayOfWeek } from '../types';
+import { DailyCloseRecord, StaffMember, DailySales, DebtItem, PendingItem, StaffRole, StaffShift, AuditEntry, WeeklySchedule, DayOfWeek } from '../types';
 import { getStaff, getRecordByDate, upsertRecord, generateId, getWeeklySchedule, getRecords } from '../services/storageService';
 import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound, StickyNote, Filter, ListChecks } from 'lucide-react';
 
@@ -9,7 +9,12 @@ interface DailyCloseProps {
 }
 
 const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  // Garantir que a data seja 'hoje' no fuso local (YYYY-MM-DD)
+  const getTodayLocalDate = () => {
+    return new Date().toLocaleDateString('en-CA');
+  };
+
+  const [date, setDate] = useState<string>(getTodayLocalDate());
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule | null>(null);
   
@@ -30,6 +35,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
   const [closingSearchTerm, setClosingSearchTerm] = useState('');
   const [modalDayFilter, setModalDayFilter] = useState<DayOfWeek | 'todos'>('todos');
+  const [selectedInModal, setSelectedInModal] = useState<string[]>([]);
   
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
   const [pendingSearchTerm, setPendingSearchTerm] = useState('');
@@ -155,12 +161,26 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
     setDeliveryCounts(prev => ({ ...prev, [staffId]: num }));
   };
 
-  const handleAddStaffToDaily = (staffId: string) => {
-    if (staffId && !activeStaffIds.includes(staffId)) {
-        setActiveStaffIds(prev => [...prev, staffId]);
+  // Funções de Seleção Múltipla
+  const toggleModalSelection = (staffId: string) => {
+    setSelectedInModal(prev => 
+      prev.includes(staffId) ? prev.filter(id => id !== staffId) : [...prev, staffId]
+    );
+  };
+
+  const handleAddSelectedToDaily = () => {
+    if (selectedInModal.length > 0) {
+      setActiveStaffIds(prev => {
+        const next = [...prev];
+        selectedInModal.forEach(id => {
+          if (!next.includes(id)) next.push(id);
+        });
+        return next;
+      });
     }
     setIsStaffModalOpen(false);
     setStaffSearchTerm('');
+    setSelectedInModal([]);
   };
 
   const handleBulkAddFromSchedule = () => {
@@ -310,21 +330,18 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
               <ArrowRight size={14} className="text-gray-300" />
             </button>
 
-            <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 w-full md:w-auto transition-all">
-              <Calendar className="w-5 h-5 text-bigRed dark:text-red-400 ml-2" />
-              <input 
-                type="date" 
-                value={date} 
-                disabled
-                className="bg-transparent border-none focus:ring-0 text-gray-700 dark:text-gray-200 font-bold outline-none w-full h-10 cursor-not-allowed opacity-70" 
-              />
+            <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 w-full md:w-auto opacity-80 cursor-default">
+              <Calendar className="w-5 h-5 text-bigRed dark:text-red-400" />
+              <span className="font-bold text-gray-700 dark:text-gray-200">
+                {date.split('-').reverse().join('/')}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Left Column */}
+        {/* Coluna Esquerda */}
         <div className="space-y-6">
           <div className={`${cardClass} border-t-4 border-t-bigYellow`}>
             <div className={sectionHeaderClass}>
@@ -391,7 +408,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
           </div>
         </div>
 
-        {/* Right Column */}
+        {/* Coluna Direita */}
         <div className="space-y-6">
           <div className={`${cardClass} border-t-4 border-t-bigRed`}>
             <div className={sectionHeaderClass}>
@@ -406,7 +423,15 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                         if (!staff) return null;
                         return (
                             <div key={staff.id} className="bg-white dark:bg-gray-700 p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-between gap-3 group">
-                                <div className="flex-1 min-w-0"><p className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate">{staff.name}</p><p className="text-[10px] text-gray-400 uppercase tracking-wide">{staff.role}</p></div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate flex items-center gap-2">
+                                    {staff.name}
+                                    <span className={`text-[8px] px-1 py-0.5 rounded-full font-black uppercase tracking-widest ${staff.shift === StaffShift.DIURNO ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                      {staff.shift}
+                                    </span>
+                                  </p>
+                                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">{staff.role}</p>
+                                </div>
                                 <div className="flex items-center gap-3">
                                     {staff.role === StaffRole.MOTOBOY && (
                                         <div className="flex flex-col items-center gap-1 bg-gray-50 dark:bg-gray-800/50 p-1 rounded border border-gray-100 dark:border-gray-600">
@@ -586,13 +611,13 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
         </div>
       )}
 
-      {/* MODAL: SELECIONAR FUNCIONÁRIO (GERAL COM FILTROS) */}
+      {/* MODAL: SELECIONAR FUNCIONÁRIOS (MULTIPLE SELECTION) */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
                     <h3 className="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2"><Users size={24} className="text-bigRed" /> Adicionar à Equipe</h3>
-                    <button onClick={() => { setIsStaffModalOpen(false); setStaffSearchTerm(''); }} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"><X size={24} /></button>
+                    <button onClick={() => { setIsStaffModalOpen(false); setStaffSearchTerm(''); setSelectedInModal([]); }} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"><X size={24} /></button>
                 </div>
 
                 {/* Day Filter Tabs */}
@@ -625,14 +650,16 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                     />
                   </div>
 
-                  {modalDayFilter !== 'todos' && availableStaffForPayments.length > 0 && (
-                    <button 
-                        onClick={handleBulkAddFromSchedule}
-                        className="w-full py-2 bg-bigRed/10 hover:bg-bigRed/20 text-bigRed text-xs font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all"
-                    >
-                        <ListChecks size={16} /> Selecionar Todos de {modalDays.find(d => d.key === modalDayFilter)?.label}
-                    </button>
-                  )}
+                  <div className="flex gap-2">
+                    {modalDayFilter !== 'todos' && availableStaffForPayments.length > 0 && (
+                      <button 
+                          onClick={handleBulkAddFromSchedule}
+                          className="flex-1 py-2 bg-bigRed/10 hover:bg-bigRed/20 text-bigRed text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all"
+                      >
+                          <ListChecks size={14} /> Selecionar Todos de {modalDays.find(d => d.key === modalDayFilter)?.label}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar bg-gray-50/30 dark:bg-gray-900/20">
@@ -647,20 +674,45 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible }) => {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {availableStaffForPayments.map(staff => (
-                              <button key={staff.id} onClick={() => handleAddStaffToDaily(staff.id)} className="text-left bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-bigRed transition-all group flex justify-between items-center shadow-sm">
-                                  <div>
-                                      <p className="font-bold text-gray-800 dark:text-gray-100 group-hover:text-bigRed transition-colors">{staff.name}</p>
-                                      <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{staff.role}</p>
-                                  </div>
-                                  <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg group-hover:bg-bigRed/10 transition-colors">
-                                    <Plus size={16} className="text-gray-300 group-hover:text-bigRed" />
-                                  </div>
-                              </button>
-                          ))}
+                          {availableStaffForPayments.map(staff => {
+                              const isSelected = selectedInModal.includes(staff.id);
+                              return (
+                                <button 
+                                  key={staff.id} 
+                                  onClick={() => toggleModalSelection(staff.id)} 
+                                  className={`text-left p-4 rounded-xl border transition-all group flex justify-between items-center shadow-sm relative overflow-hidden
+                                      ${isSelected ? 'bg-bigRed/5 border-bigRed ring-1 ring-bigRed' : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-bigRed'}
+                                  `}
+                                >
+                                    <div>
+                                        <p className={`font-bold transition-colors flex items-center gap-2 ${isSelected ? 'text-bigRed' : 'text-gray-800 dark:text-gray-100'}`}>
+                                          {staff.name}
+                                          <span className={`text-[8px] px-1 py-0.5 rounded-full font-black uppercase tracking-widest ${staff.shift === StaffShift.DIURNO ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                            {staff.shift}
+                                          </span>
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{staff.role}</p>
+                                    </div>
+                                    <div className={`p-1.5 rounded-lg transition-colors ${isSelected ? 'bg-bigRed text-white' : 'bg-gray-50 dark:bg-gray-800 group-hover:bg-bigRed/10 text-gray-300 group-hover:text-bigRed'}`}>
+                                      {isSelected ? <Check size={16} /> : <Plus size={16} />}
+                                    </div>
+                                </button>
+                              );
+                          })}
                       </div>
                     )}
                 </div>
+
+                {selectedInModal.length > 0 && (
+                  <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                      <button 
+                        onClick={handleAddSelectedToDaily} 
+                        className="w-full bg-bigRed text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-red-800 transition-colors"
+                      >
+                        <UserPlus size={20} /> Adicionar {selectedInModal.length} Selecionados
+                      </button>
+                  </div>
+                )}
             </div>
         </div>
       )}

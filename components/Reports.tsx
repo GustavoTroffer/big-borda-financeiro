@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { getRecordByDate, getStaff, getRecords, deleteRecord } from '../services/storageService';
-import { StaffMember, DailyCloseRecord, AuditEntry } from '../types';
+// Import StaffShift to fix the reference error on line 264
+import { StaffMember, DailyCloseRecord, AuditEntry, StaffShift } from '../types';
 import { generateFinancialSummary } from '../services/geminiService';
 import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt, StickyNote } from 'lucide-react';
 
@@ -9,7 +11,12 @@ interface ReportsProps {
 }
 
 const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  // Garantir fuso local
+  const getTodayLocalDate = () => {
+    return new Date().toLocaleDateString('en-CA');
+  };
+
+  const [date, setDate] = useState<string>(getTodayLocalDate());
   const [record, setRecord] = useState<DailyCloseRecord | undefined>(undefined);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [summary, setSummary] = useState('');
@@ -126,8 +133,8 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                                       <td className="px-6 py-4 text-right font-mono font-black">R$ {tS.toFixed(2)}</td>
                                       <td className="px-6 py-4 text-right">
                                           <div className="flex justify-end gap-2">
-                                              <button onClick={() => { setDate(r.date); setActiveTab('report'); }} className="p-2 text-gray-400 hover:text-bigYellow"><Printer size={18} /></button>
-                                              <button onClick={() => handleDelete(r.date)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
+                                              <button onClick={() => { setDate(r.date); setActiveTab('report'); }} className="p-2 text-gray-400 hover:text-bigYellow" title="Visualizar Relatório"><Printer size={18} /></button>
+                                              <button onClick={() => handleDelete(r.date)} className="p-2 text-gray-400 hover:text-red-500" title="Excluir"><Trash2 size={18} /></button>
                                           </div>
                                       </td>
                                   </tr>
@@ -141,11 +148,17 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
           <div className="space-y-8">
               <div className="no-print flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 gap-4">
                 <div className="flex items-center gap-4">
-                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="p-2 border border-bigYellow/50 bg-bigYellow/10 dark:bg-gray-700 dark:border-gray-600 rounded-lg font-bold" />
+                    {/* Campo de data desabilitado para alteração manual no relatório, conforme solicitado */}
+                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 opacity-80">
+                      <Calendar size={18} className="text-bigRed" />
+                      <span className="font-bold text-gray-700 dark:text-gray-200">
+                        {date.split('-').reverse().join('/')}
+                      </span>
+                    </div>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={handleGenerateAi} className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 font-bold shadow"><Wand2 size={18} /> {loadingAi ? 'Gerando...' : 'Resumo IA'}</button>
-                    <button onClick={handlePrint} className="flex-1 bg-gray-800 dark:bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center justify-center gap-2 font-bold shadow"><Printer size={18} /> Imprimir</button>
+                    <button onClick={handleGenerateAi} className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 font-bold shadow transition-all"><Wand2 size={18} /> {loadingAi ? 'Gerando...' : 'Resumo IA'}</button>
+                    <button onClick={handlePrint} className="flex-1 bg-gray-800 dark:bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center justify-center gap-2 font-bold shadow transition-all"><Printer size={18} /> Imprimir</button>
                 </div>
               </div>
 
@@ -159,7 +172,7 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
               {!record ? (
                   <div className="p-12 text-center bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-100">
                       <AlertCircle className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                      <p className="text-gray-400">Nenhum fechamento para este dia.</p>
+                      <p className="text-gray-400">Para visualizar um relatório, selecione um dia no <button onClick={() => setActiveTab('history')} className="text-bigRed font-bold underline">Histórico</button>.</p>
                   </div>
               ) : (
                   <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg border-t-8 border-bigRed" id="printable-area">
@@ -252,7 +265,15 @@ const Reports: React.FC<ReportsProps> = ({ isVisible }) => {
                                         const staff = staffList.find(s => s.id === p.staffId);
                                         return (
                                             <tr key={idx}>
-                                                <td className="px-4 py-3"><div className="font-bold text-sm">{staff?.name || 'N/I'}{p.deliveryCount ? ` (${p.deliveryCount} entr.)` : ''}</div><div className="text-[10px] text-gray-400 font-mono">PIX: {staff?.pixKey || '-'}</div></td>
+                                                <td className="px-4 py-3">
+                                                  <div className="font-bold text-sm flex items-center gap-2">
+                                                    {staff?.name || 'N/I'}{p.deliveryCount ? ` (${p.deliveryCount} entr.)` : ''}
+                                                    <span className={`text-[8px] uppercase font-black px-1 py-0.5 rounded ${staff?.shift === StaffShift.DIURNO ? 'bg-orange-50 text-orange-500' : 'bg-indigo-50 text-indigo-500'}`}>
+                                                      {staff?.shift}
+                                                    </span>
+                                                  </div>
+                                                  <div className="text-[10px] text-gray-400 font-mono">PIX: {staff?.pixKey || '-'}</div>
+                                                </td>
                                                 <td className="px-4 py-3 text-right font-black font-mono">R$ {p.amount.toFixed(2)}</td>
                                             </tr>
                                         );

@@ -5,12 +5,18 @@ export enum StaffRole {
   ATENDENTE = 'Atendente'
 }
 
+export enum StaffShift {
+  DIURNO = 'Diurno',
+  NOTURNO = 'Noturno'
+}
+
 export interface StaffMember {
   id: string;
   name: string;
   pixKey: string;
   phone: string;
   role: StaffRole;
+  shift: StaffShift;
 }
 
 export interface DailySales {

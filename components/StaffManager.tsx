@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { StaffMember, StaffRole, DayOfWeek, WeeklySchedule } from '../types';
+import { StaffMember, StaffRole, StaffShift, DayOfWeek, WeeklySchedule } from '../types';
 import { getStaff, saveStaff, generateId, getWeeklySchedule, saveWeeklySchedule } from '../services/storageService';
-import { Trash2, UserPlus, Phone, CreditCard, User, Pencil, X, Save, CheckCircle2, CalendarDays, Check } from 'lucide-react';
+import { Trash2, UserPlus, Phone, CreditCard, User, Pencil, X, Save, CheckCircle2, CalendarDays, Check, Clock } from 'lucide-react';
 
 const StaffManager: React.FC = () => {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
@@ -11,6 +12,7 @@ const StaffManager: React.FC = () => {
   const [newPix, setNewPix] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newRole, setNewRole] = useState<StaffRole>(StaffRole.MOTOBOY);
+  const [newShift, setNewShift] = useState<StaffShift>(StaffShift.NOTURNO);
   
   // Edit State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,6 +34,7 @@ const StaffManager: React.FC = () => {
     setNewPix('');
     setNewPhone('');
     setNewRole(StaffRole.MOTOBOY);
+    setNewShift(StaffShift.NOTURNO);
     setEditingId(null);
   };
 
@@ -52,7 +55,8 @@ const StaffManager: React.FC = () => {
                     name: newName,
                     pixKey: newPix,
                     phone: newPhone,
-                    role: newRole
+                    role: newRole,
+                    shift: newShift
                 };
             }
             return staff;
@@ -66,6 +70,7 @@ const StaffManager: React.FC = () => {
             pixKey: newPix,
             phone: newPhone,
             role: newRole,
+            shift: newShift
         };
         updatedList.push(newMember);
         setSavedMessage('Funcionário cadastrado!');
@@ -87,6 +92,7 @@ const StaffManager: React.FC = () => {
     setNewPix(staff.pixKey);
     setNewPhone(staff.phone);
     setNewRole(staff.role);
+    setNewShift(staff.shift || StaffShift.NOTURNO);
     
     // Scroll to top to see the form
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -174,7 +180,7 @@ const StaffManager: React.FC = () => {
                 )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
                 <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Nome Completo</label>
                 <input
@@ -217,6 +223,17 @@ const StaffManager: React.FC = () => {
                 <option value={StaffRole.ATENDENTE}>Atendente</option>
                 </select>
             </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Turno</label>
+                <select
+                className={inputClass}
+                value={newShift}
+                onChange={(e) => setNewShift(e.target.value as StaffShift)}
+                >
+                <option value={StaffShift.DIURNO}>Diurno</option>
+                <option value={StaffShift.NOTURNO}>Noturno</option>
+                </select>
+            </div>
             </div>
             <div className="flex gap-3 mt-4">
                 <button
@@ -250,6 +267,9 @@ const StaffManager: React.FC = () => {
                 <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                     <User size={16} className={editingId === staff.id ? "text-blue-500" : "text-bigRed dark:text-red-400"} />
                     {staff.name}
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest ${staff.shift === StaffShift.DIURNO ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                        {staff.shift}
+                    </span>
                 </h4>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{staff.role}</p>
                 <div className="mt-2 text-sm text-gray-600 dark:text-gray-300 space-y-1">
@@ -373,9 +393,12 @@ const StaffManager: React.FC = () => {
                                                         `}>
                                                             {isSelected && <Check size={14} strokeWidth={3} />}
                                                         </div>
-                                                        <span className={`text-sm font-medium ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                            {staff.name}
-                                                        </span>
+                                                        <div className="flex flex-col items-start">
+                                                          <span className={`text-sm font-medium ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                              {staff.name}
+                                                          </span>
+                                                          <span className="text-[8px] uppercase font-black text-gray-400">{staff.shift}</span>
+                                                        </div>
                                                     </div>
                                                 </button>
                                             )
