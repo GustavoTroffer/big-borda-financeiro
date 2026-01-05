@@ -29,6 +29,15 @@ export interface StaffPayment {
   staffId: string;
   amount: number;
   deliveryCount?: number; // Quantidade de entregas (para motoboys)
+  isPaid?: boolean; // Indica se o valor já foi repassado ao colaborador
+}
+
+export interface DeliveryCommand {
+  id: string;
+  code: string;
+  type: string;
+  amount: number;
+  timestamp: string;
 }
 
 export interface DebtItem {
@@ -57,6 +66,7 @@ export interface DailyCloseRecord {
   payments: StaffPayment[];
   debts: DebtItem[]; // Fiados (Devem para o restaurante)
   pendingPayables?: PendingItem[]; // Pendências (Restaurante deve para alguém)
+  motoboyCommands?: Record<string, DeliveryCommand[]>; // Comandas individuais por motoboy
   ifoodMotoboys?: {
     count: number;
     totalCost: number;
@@ -70,7 +80,7 @@ export interface DailyCloseRecord {
   updatedAt?: string;
 }
 
-export type ViewState = 'dashboard' | 'staff' | 'closing' | 'reports';
+export type ViewState = 'dashboard' | 'staff' | 'closing' | 'reports' | 'motoboys';
 
 // Weekly Schedule Types
 export type DayOfWeek = 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo';

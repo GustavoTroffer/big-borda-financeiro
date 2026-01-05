@@ -49,7 +49,8 @@ const generateStaticSummary = (record: DailyCloseRecord, staffList: StaffMember[
       const staff = staffList.find(s => s.id === p.staffId);
       const pix = staff?.pixKey ? ` (Pix: ${staff.pixKey})` : '';
       const deliveryInfo = p.deliveryCount ? ` [${p.deliveryCount} entregas]` : '';
-      text += `▪️ ${staff?.name || 'Desconhecido'}${deliveryInfo}${pix}: ${formatCurrency(p.amount)}\n`;
+      const statusStr = p.isPaid ? ' ✅ [PAGO]' : ' ⏳ [PENDENTE]';
+      text += `▪️ ${staff?.name || 'Desconhecido'}${deliveryInfo}${pix}: ${formatCurrency(p.amount)}${statusStr}\n`;
     });
   } else {
     text += `▪️ Nenhum valor de equipe lançado.\n`;
@@ -97,7 +98,8 @@ export const generateFinancialSummary = async (
       const staff = staffList.find(s => s.id === p.staffId);
       const pixStr = staff?.pixKey ? ` | Pix: ${staff.pixKey}` : ''; 
       const deliveryInfo = p.deliveryCount ? ` | ${p.deliveryCount} entregas` : '';
-      return `- ${staff?.name || 'Desconhecido'}${deliveryInfo}${pixStr}: R$ ${p.amount.toFixed(2)}`;
+      const statusStr = p.isPaid ? ' [STATUS: PAGO]' : ' [STATUS: PENDENTE]';
+      return `- ${staff?.name || 'Desconhecido'}${deliveryInfo}${pixStr}: R$ ${p.amount.toFixed(2)}${statusStr}`;
     }).join('\n');
 
     const ifoodMotoboyCount = record.ifoodMotoboys?.count || 0;
@@ -115,10 +117,10 @@ export const generateFinancialSummary = async (
       ? staffList.find(s => s.id === record.closedByStaffId)?.name || 'Não identificado'
       : 'Não informado';
 
-    const systemInstruction = "Você é um assistente financeiro do 'Big Borda Gourmet'. Gere resumos para WhatsApp claros e profissionais. Você DEVE obrigatoriamente mostrar o faturamento detalhado por aplicativo (iFood, KCMS e SGV). Use 'PENDÊNCIAS' para o que o restaurante deve pagar (equipe/fornecedores de outros dias) e 'FIADO' para o que tem a receber de clientes. Regra importante: O saldo final deve ser exatamente o total das vendas brutas.";
+    const systemInstruction = "Você é um assistente financeiro do 'Big Borda Gourmet'. Gere resumos para WhatsApp claros e profissionais. Você DEVE informar claramente se o pagamento de cada funcionário já foi PAGO ou está PENDENTE. Você DEVE obrigatoriamente mostrar o faturamento detalhado por aplicativo (iFood, KCMS e SGV). Use 'PENDÊNCIAS' para o que o restaurante deve pagar (equipe/fornecedores de outros dias) e 'FIADO' para o que tem a receber de clientes. O saldo final deve ser exatamente o total das vendas brutas.";
 
     const contentPrompt = `
-      Gere um relatório de fechamento detalhando os aplicativos:
+      Gere um relatório de fechamento detalhando os aplicativos e o status de pagamento da equipe:
       DATA: ${record.date.split('-').reverse().join('/')}
       RESPONSÁVEL: ${attendantName}
       
@@ -141,11 +143,11 @@ export const generateFinancialSummary = async (
       FIADO (A RECEBER):
       ${record.debts?.map(d => `- ${d.name}: R$ ${d.amount.toFixed(2)}`).join('\n') || 'Nenhum'}
 
-      SALDO FINAL EM CAIXA: R$ ${finalBalance.toFixed(2)}
+      SALDO FINAL EM CAIXA: R$ ${totalSales.toFixed(2)}
       
       OBSERVAÇÕES: ${record.notes || 'Nenhuma'}
       
-      Formate com emojis e certifique-se de listar as vendas de iFood, KCMS e SGV separadamente no texto.
+      Formate com emojis e certifique-se de listar as vendas separadamente e o status de cada pagamento (Pago ou Pendente).
     `;
 
     const response = await ai.models.generateContent({

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DailyCloseRecord, StaffMember, DailySales, DebtItem, PendingItem, StaffRole, StaffShift, AuditEntry, WeeklySchedule, DayOfWeek } from '../types';
 import { getStaff, getRecordByDate, upsertRecord, generateId, getWeeklySchedule, getRecords } from '../services/storageService';
-import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound, StickyNote, Filter, ListChecks, History } from 'lucide-react';
+import { Save, Calendar, DollarSign, Users, UserMinus, Plus, Trash2, UserPlus, MessageSquare, Clock, CheckCircle2, UserCheck, Bike, Check, X, ArrowRight, Search, AlertCircle, Receipt, UserRound, StickyNote, Filter, ListChecks, History, Banknote } from 'lucide-react';
 
 interface DailyCloseProps {
   isVisible: boolean;
@@ -24,6 +24,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
   const [sales, setSales] = useState<DailySales>({ ifood: 0, kcms: 0, sgv: 0 });
   const [payments, setPayments] = useState<Record<string, number>>({});
   const [deliveryCounts, setDeliveryCounts] = useState<Record<string, number>>({}); 
+  const [paidStaffIds, setPaidStaffIds] = useState<string[]>([]); // Novo estado para controlar quem já foi pago
   const [activeStaffIds, setActiveStaffIds] = useState<string[]>([]);
   const [debts, setDebts] = useState<DebtItem[]>([]); 
   const [pendingPayables, setPendingPayables] = useState<PendingItem[]>([]); 
@@ -96,6 +97,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
       const paymentMap: Record<string, number> = {};
       const deliveryMap: Record<string, number> = {};
       const activeIds: string[] = [];
+      const paidIds: string[] = [];
       
       record.payments.forEach(p => {
         paymentMap[p.staffId] = p.amount;
@@ -103,10 +105,14 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
             deliveryMap[p.staffId] = p.deliveryCount;
         }
         activeIds.push(p.staffId);
+        if (p.isPaid) {
+          paidIds.push(p.staffId);
+        }
       });
       
       setPayments(paymentMap);
       setDeliveryCounts(deliveryMap);
+      setPaidStaffIds(paidIds);
       setActiveStaffIds(activeIds);
       setDebts(record.debts || []);
       setPendingPayables(record.pendingPayables || []);
@@ -122,6 +128,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
       setSales({ ifood: 0, kcms: 0, sgv: 0 });
       setPayments({});
       setDeliveryCounts({});
+      setPaidStaffIds([]);
       setActiveStaffIds([]);
       setDebts([]);
       setPendingPayables([]);
@@ -181,6 +188,14 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
     setDeliveryCounts(prev => ({ ...prev, [staffId]: num }));
   };
 
+  const togglePaidStatus = (staffId: string) => {
+    setPaidStaffIds(prev => 
+      prev.includes(staffId) 
+        ? prev.filter(id => id !== staffId) 
+        : [...prev, staffId]
+    );
+  };
+
   // Funções de Seleção Múltipla
   const toggleModalSelection = (staffId: string) => {
     setSelectedInModal(prev => 
@@ -219,6 +234,7 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
 
   const handleRemoveStaffFromDaily = (staffId: string) => {
     setActiveStaffIds(prev => prev.filter(id => id !== staffId));
+    setPaidStaffIds(prev => prev.filter(id => id !== staffId));
     setPayments(prev => {
         const next = { ...prev };
         delete next[staffId];
@@ -269,11 +285,13 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
     const existingRecord = getRecordByDate(date);
     const now = new Date().toISOString();
     
+    // Removido o filtro de p.amount > 0 para garantir que funcionários adicionados fiquem na lista
     const paymentList = activeStaffIds.map(staffId => ({
         staffId,
         amount: payments[staffId] || 0,
-        deliveryCount: deliveryCounts[staffId] || 0
-    })).filter(p => p.amount > 0);
+        deliveryCount: deliveryCounts[staffId] || 0,
+        isPaid: paidStaffIds.includes(staffId)
+    }));
 
     const newRecord: DailyCloseRecord = {
       id: date, date, sales, payments: paymentList, debts, pendingPayables,
@@ -446,18 +464,24 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
                     {activeStaffIds.length === 0 ? (<div className="text-center py-8 text-gray-400 text-sm">Nenhum pagamento hoje.</div>) : activeStaffIds.map(staffId => {
                         const staff = staffList.find(s => s.id === staffId);
                         if (!staff) return null;
+                        const isPaid = paidStaffIds.includes(staff.id);
                         return (
-                            <div key={staff.id} className={`bg-white dark:bg-gray-700 p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-between gap-3 group ${isHistoryDate ? 'hover:border-blue-200' : ''}`}>
+                            <div key={staff.id} className={`bg-white dark:bg-gray-700 p-3 rounded-xl border transition-all duration-300 shadow-sm flex items-center justify-between gap-3 group ${isPaid ? 'border-green-500 bg-green-50/10 dark:bg-green-900/10' : 'border-gray-200 dark:border-gray-600'} ${isHistoryDate && !isPaid ? 'hover:border-blue-200' : ''}`}>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-bold text-gray-800 dark:text-gray-200 text-sm truncate flex items-center gap-2">
                                     {staff.name}
                                     <span className={`text-[8px] px-1 py-0.5 rounded-full font-black uppercase tracking-widest ${staff.shift === StaffShift.DIURNO ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
                                       {staff.shift}
                                     </span>
+                                    {isPaid && (
+                                      <span className="flex items-center gap-0.5 text-[8px] bg-green-100 text-green-700 px-1 rounded uppercase font-black tracking-widest">
+                                        <Check size={8} /> PAGO
+                                      </span>
+                                    )}
                                   </p>
                                   <p className="text-[10px] text-gray-400 uppercase tracking-wide">{staff.role}</p>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                     {staff.role === StaffRole.MOTOBOY && (
                                         <div className="flex flex-col items-center gap-1 bg-gray-50 dark:bg-gray-800/50 p-1 rounded border border-gray-100 dark:border-gray-600">
                                             <span className="text-[9px] font-bold text-gray-400 uppercase">Entregas</span>
@@ -465,10 +489,20 @@ const DailyClose: React.FC<DailyCloseProps> = ({ isVisible, initialDate }) => {
                                         </div>
                                     )}
                                     <div className="relative w-28">
-                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 ${isHistoryDate ? 'text-blue-600/70' : 'text-bigRed/70'} text-xs font-bold`}>R$</span>
-                                        <input type="number" step="0.01" className="w-full pl-8 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-100 font-medium text-right outline-none" value={payments[staff.id] || ''} onChange={(e) => handlePaymentChange(staff.id, e.target.value)} />
+                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 ${isPaid ? 'text-green-600' : isHistoryDate ? 'text-blue-600/70' : 'text-bigRed/70'} text-xs font-bold`}>R$</span>
+                                        <input type="number" step="0.01" className={`w-full pl-8 pr-3 py-2 ${isPaid ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100'} border border-gray-200 dark:border-gray-600 rounded-lg font-medium text-right outline-none transition-all`} value={payments[staff.id] || ''} onChange={(e) => handlePaymentChange(staff.id, e.target.value)} />
                                     </div>
-                                    <button onClick={() => handleRemoveStaffFromDaily(staff.id)} className="text-gray-300 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={16} /></button>
+                                    
+                                    <div className="flex flex-col gap-1">
+                                      <button 
+                                        onClick={() => togglePaidStatus(staff.id)}
+                                        className={`p-1.5 rounded-lg transition-all ${isPaid ? 'bg-green-500 text-white shadow-sm' : 'text-gray-300 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'}`}
+                                        title={isPaid ? "Desmarcar como pago" : "Marcar como pago"}
+                                      >
+                                        <Banknote size={16} />
+                                      </button>
+                                      <button onClick={() => handleRemoveStaffFromDaily(staff.id)} className="text-gray-300 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={16} /></button>
+                                    </div>
                                 </div>
                             </div>
                         );

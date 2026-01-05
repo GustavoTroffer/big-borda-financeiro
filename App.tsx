@@ -4,7 +4,8 @@ import { ViewState } from './types';
 import DailyClose from './components/DailyClose';
 import StaffManager from './components/StaffManager';
 import Reports from './components/Reports';
-import { Pizza, DollarSign, Users, FileText, Menu, X, Moon, Sun } from 'lucide-react';
+import DeliveryControl from './components/DeliveryControl';
+import { Pizza, DollarSign, Users, FileText, Menu, X, Moon, Sun, Bike } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('closing');
@@ -69,6 +70,7 @@ const App: React.FC = () => {
             <nav className="hidden md:flex gap-2 items-center">
               <NavItem view="closing" label="Fechamento" icon={DollarSign} onClick={() => setSelectedClosingDate(null)} />
               <NavItem view="staff" label="Equipe" icon={Users} />
+              <NavItem view="motoboys" label="Motoboys" icon={Bike} />
               <NavItem view="reports" label="Relatórios" icon={FileText} />
               <div className="w-px h-8 bg-white/20 mx-2"></div>
               <button 
@@ -95,6 +97,7 @@ const App: React.FC = () => {
           <div className="md:hidden bg-red-900 dark:bg-red-950 px-4 py-4 space-y-2 border-t border-red-800 dark:border-red-900">
             <NavItem view="closing" label="Fechamento do Dia" icon={DollarSign} onClick={() => setSelectedClosingDate(null)} />
             <NavItem view="staff" label="Gerenciar Equipe" icon={Users} />
+            <NavItem view="motoboys" label="Controle Motoboys" icon={Bike} />
             <NavItem view="reports" label="Imprimir Relatórios" icon={FileText} />
           </div>
         )}
@@ -109,6 +112,9 @@ const App: React.FC = () => {
         </div>
         <div className={currentView === 'staff' ? 'block animate-in fade-in duration-300' : 'hidden'}>
           <StaffManager />
+        </div>
+        <div className={currentView === 'motoboys' ? 'block animate-in fade-in duration-300' : 'hidden'}>
+          <DeliveryControl isVisible={currentView === 'motoboys'} />
         </div>
         <div className={currentView === 'reports' ? 'block animate-in fade-in duration-300' : 'hidden'}>
           <Reports isVisible={currentView === 'reports'} onEditRecord={handleEditRecord} />

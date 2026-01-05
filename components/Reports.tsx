@@ -4,7 +4,7 @@ import { getRecordByDate, getStaff, getRecords, deleteRecord } from '../services
 // Import StaffShift to fix the reference error
 import { StaffMember, DailyCloseRecord, AuditEntry, StaffShift } from '../types';
 import { generateFinancialSummary } from '../services/geminiService';
-import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt, StickyNote, BarChart3, Filter, ChevronDown, Pencil, ExternalLink } from 'lucide-react';
+import { Printer, Wand2, Copy, Check, List, Calendar, Trash2, Search, History, AlertCircle, X, Bike, UserMinus, Receipt, StickyNote, BarChart3, Filter, ChevronDown, Pencil, ExternalLink, Banknote } from 'lucide-react';
 
 interface ReportsProps {
   isVisible: boolean;
@@ -336,7 +336,7 @@ const Reports: React.FC<ReportsProps> = ({ isVisible, onEditRecord }) => {
               </div>
           </div>
       ) : (
-          /* Report Tab Content - Mantido conforme original */
+          /* Report Tab Content */
           <div className="space-y-8">
               <div className="no-print flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 gap-4">
                 <div className="flex items-center gap-4">
@@ -449,13 +449,17 @@ const Reports: React.FC<ReportsProps> = ({ isVisible, onEditRecord }) => {
                             <h3 className="text-xs font-black text-white bg-bigRed px-3 py-2 rounded-t-lg uppercase">Valores a Pagar (Equipe Hoje)</h3>
                             <table className="w-full border border-gray-100">
                                 <thead className="bg-gray-50 dark:bg-gray-900/50">
-                                    <tr className="text-[10px] text-gray-500 font-black uppercase"><th className="px-4 py-3">Funcionário / PIX</th><th className="px-4 py-3 text-right">Valor</th></tr>
+                                    <tr className="text-[10px] text-gray-500 font-black uppercase">
+                                        <th className="px-4 py-3 text-left">Funcionário / PIX</th>
+                                        <th className="px-4 py-3 text-center">Status</th>
+                                        <th className="px-4 py-3 text-right">Valor</th>
+                                    </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {record.payments.map((p, idx) => {
                                         const staff = staffList.find(s => s.id === p.staffId);
                                         return (
-                                            <tr key={idx}>
+                                            <tr key={idx} className={p.isPaid ? 'bg-green-50/30' : ''}>
                                                 <td className="px-4 py-3">
                                                   <div className="font-bold text-sm flex items-center gap-2">
                                                     {staff?.name || 'N/I'}{p.deliveryCount ? ` (${p.deliveryCount} entr.)` : ''}
@@ -465,13 +469,24 @@ const Reports: React.FC<ReportsProps> = ({ isVisible, onEditRecord }) => {
                                                   </div>
                                                   <div className="text-[10px] text-gray-400 font-mono">PIX: {staff?.pixKey || '-'}</div>
                                                 </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {p.isPaid ? (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-green-600 bg-green-100 px-2 py-0.5 rounded-full border border-green-200 uppercase tracking-widest">
+                                                            <Check size={10} /> Pago
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 uppercase tracking-widest">
+                                                            Pendente
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3 text-right font-black font-mono">R$ {p.amount.toFixed(2)}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                                 <tfoot>
-                                    <tr className="bg-gray-50 dark:bg-gray-900/50 font-black"><td className="px-4 py-3 text-right text-xs uppercase">Total Equipe a Pagar</td><td className="px-4 py-3 text-right font-mono text-bigRed text-lg">R$ {totalStaffToPay.toFixed(2)}</td></tr>
+                                    <tr className="bg-gray-50 dark:bg-gray-900/50 font-black"><td colSpan={2} className="px-4 py-3 text-right text-xs uppercase">Total Equipe a Pagar</td><td className="px-4 py-3 text-right font-mono text-bigRed text-lg">R$ {totalStaffToPay.toFixed(2)}</td></tr>
                                 </tfoot>
                             </table>
                         </div>
