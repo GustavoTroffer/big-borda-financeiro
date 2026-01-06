@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StaffMember, StaffRole, DailyCloseRecord, DeliveryCommand, DayOfWeek } from '../types';
 import { getStaff, getRecordByDate, upsertRecord, generateId, getWeeklySchedule } from '../services/storageService';
-import { Bike, Plus, X, Check, CreditCard, Hash, DollarSign, Trash2, AlertCircle } from 'lucide-react';
+import { Bike, Plus, X, Check, CreditCard, Hash, DollarSign, Trash2, AlertCircle, Banknote, ChevronDown } from 'lucide-react';
 
 interface DeliveryControlProps {
   isVisible: boolean;
@@ -18,7 +18,8 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
   
   // Modal states for launching command
   const [commandCode, setCommandCode] = useState('');
-  const [commandType, setCommandType] = useState('Cartão');
+  const [commandType, setCommandType] = useState('IFOOD');
+  const [paymentMethod, setPaymentMethod] = useState('Cartão');
   const [commandAmount, setCommandAmount] = useState('');
 
   const loadData = () => {
@@ -26,10 +27,6 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
     const currentRecord = getRecordByDate(today);
     setRecord(currentRecord || null);
 
-    // Determine who should be visible today:
-    // 1. Those in the Weekly Schedule
-    // 2. Those already in the current record's payments list (Added via "Fechamento")
-    // 3. Those who already have commands launched today
     const schedule = getWeeklySchedule();
     const days: DayOfWeek[] = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
     const todayDay = days[new Date().getDay()];
@@ -37,21 +34,16 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
 
     const activeIds = new Set<string>(scheduledIds);
     if (currentRecord) {
-      // Add anyone in the payments list
       currentRecord.payments.forEach(p => activeIds.add(p.staffId));
-      
-      // Add anyone who already has a comanda block
       if (currentRecord.motoboyCommands) {
         Object.keys(currentRecord.motoboyCommands).forEach(id => activeIds.add(id));
       }
     }
 
-    // Filter only those who are actually Motoboys
     const filteredMotoboys = allStaff.filter(s => s.role === StaffRole.MOTOBOY && activeIds.has(s.id));
     setActiveMotoboys(filteredMotoboys);
   };
 
-  // Reload data when tab becomes visible
   useEffect(() => {
     if (isVisible) {
       loadData();
@@ -62,7 +54,8 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
     setSelectedMotoboy(motoboy);
     setCommandCode('');
     setCommandAmount('');
-    setCommandType('Cartão');
+    setCommandType('IFOOD');
+    setPaymentMethod('Cartão');
   };
 
   const getUpdatedRecordTemplate = (): DailyCloseRecord => {
@@ -89,6 +82,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
       id: generateId(),
       code: commandCode,
       type: commandType,
+      paymentMethod: paymentMethod,
       amount: amount,
       timestamp: new Date().toISOString()
     };
@@ -102,7 +96,6 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
 
     updatedRecord.motoboyCommands[selectedMotoboy.id].push(newCommand);
     
-    // Auto-update total delivery count in payments
     const existingPaymentIndex = updatedRecord.payments.findIndex(p => p.staffId === selectedMotoboy.id);
     const totalDeliveries = updatedRecord.motoboyCommands[selectedMotoboy.id].length;
     
@@ -129,7 +122,6 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
         const updatedRecord = { ...record };
         updatedRecord.motoboyCommands![motoboyId] = updatedRecord.motoboyCommands![motoboyId].filter(c => c.id !== commandId);
         
-        // Update delivery count
         const payIndex = updatedRecord.payments.findIndex(p => p.staffId === motoboyId);
         if (payIndex >= 0) {
             updatedRecord.payments[payIndex].deliveryCount = updatedRecord.motoboyCommands![motoboyId].length;
@@ -142,7 +134,6 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-12 pb-32">
-      {/* SECTION: COMMAND LAUNCH GRID */}
       <section>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
@@ -169,7 +160,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
               const totalValue = commands.reduce((acc, c) => acc + c.amount, 0);
               
               return (
-                <div key={moto.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col group hover:shadow-md transition-all">
+                <div key={moto.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col group hover:shadow-md transition-all relative">
                   <div className="p-5 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
                      <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-bigRed text-white flex items-center justify-center font-black">
@@ -192,7 +183,10 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                   <div className="p-4 flex-1">
                      <div className="flex justify-between items-center mb-4">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Comandas ({commands.length})</span>
-                        <span className="text-sm font-black text-bigRed">R$ {totalValue.toFixed(2)}</span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-xs text-gray-400 font-bold uppercase tracking-tighter mb-0.5">Soma Total</span>
+                          <span className="text-sm font-black text-bigRed">R$ {totalValue.toFixed(2)}</span>
+                        </div>
                      </div>
                      
                      <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
@@ -202,7 +196,10 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                           commands.map(cmd => (
                             <div key={cmd.id} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700 group/item">
                                <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300">#{cmd.code}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">#{cmd.code}</span>
+                                    <span className="text-[8px] bg-white dark:bg-gray-800 px-1 py-0.5 rounded border border-gray-100 dark:border-gray-700 font-black text-gray-400 uppercase">{cmd.paymentMethod || 'N/I'}</span>
+                                  </div>
                                   <span className="text-[8px] uppercase font-black text-gray-400">{cmd.type}</span>
                                </div>
                                <div className="flex items-center gap-3">
@@ -255,17 +252,36 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Tipo de Comanda</label>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Origem da Comanda</label>
                 <div className="relative">
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={18} />
                   <select 
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-bigYellow text-sm font-bold appearance-none"
+                    className="w-full pl-4 pr-10 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-bigYellow text-sm font-bold appearance-none"
                     value={commandType}
                     onChange={(e) => setCommandType(e.target.value)}
                   >
-                    <option>Kcms</option>
-                    <option>Ifood</option>
-                    <option>SGV</option>
+                    <option value="IFOOD">IFOOD</option>
+                    <option value="KCMS">KCMS</option>
+                    <option value="SGV">SGV</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Forma de Pagamento</label>
+                <div className="relative">
+                  <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" size={18} />
+                  <select 
+                    className="w-full pl-10 pr-10 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-bigYellow text-sm font-bold appearance-none"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
+                    <option value="Cartão">Cartão</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Fiado">Fiado</option>
+                    <option value="PagoIfood">PagoIfood</option>
                   </select>
                 </div>
               </div>
