@@ -1,20 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+Sistema de controle financeiro e gestçao de funcionários 💰
+Sistema de gestão financeira e controle diário desenvolvido para otimizar a operação de delivery, focado no controle de escalas, pagamentos de freelancers e rastreio de entregas de motoboys.
 
-# Run and deploy your AI Studio app
+🚀 Funcionalidades
+Controle Diário: Registro de entradas e saídas com fechamento de caixa automatizado.
 
-This contains everything you need to run your app locally.
+Gestão de Equipe: Gerenciamento de funcionários fixos, freelancers e motoboys.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1zvX4poFhTpjRxb7WDWUZN3gpQvwJ2ubJ
+Sistema de Escalas: Definição de turnos diurnos e noturnos para a equipe.
 
-## Run Locally
+Rastreio de Entregas: Registro detalhado de pedidos por plataforma (iFood, KCMS, SGV) com soma automática de comissões.
 
-**Prerequisites:**  Node.js
+Relatórios: Geração de relatórios diários com opção de impressão e salvamento em PDF.
 
+🛠️ Tecnologias Utilizadas
+Este projeto foi construído com as seguintes tecnologias:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+React: Biblioteca para construção da interface.
+
+TypeScript: Tipagem estática para maior segurança e produtividade.
+
+Vite: Ferramenta de build ultra-rápida.
+
+Tailwind CSS: Framework para estilização moderna e responsiva.
+
+Lucide React: Biblioteca de ícones.
+
+Google Gemini API: Integração com inteligência artificial para automação de processos.
