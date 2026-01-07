@@ -36,7 +36,9 @@ export interface DeliveryCommand {
   id: string;
   code: string;
   type: string;
+  paymentMethod?: string; // Forma de pagamento (Cartão, Pix, Dinheiro, etc)
   amount: number;
+  deliveryFee?: number; // Taxa de entrega
   timestamp: string;
 }
 
