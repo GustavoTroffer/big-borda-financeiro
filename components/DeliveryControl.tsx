@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StaffMember, StaffRole, DailyCloseRecord, DeliveryCommand, DayOfWeek } from '../types';
 import { getStaff, getRecordByDate, upsertRecord, generateId, getWeeklySchedule } from '../services/storageService';
-import { Bike, Plus, X, Check, CreditCard, Hash, DollarSign, Trash2, AlertCircle, Banknote, ChevronDown, MapPin, Pencil } from 'lucide-react';
+import { Bike, Plus, X, Check, CreditCard, Hash, DollarSign, Trash2, AlertCircle, Banknote, ChevronDown, MapPin, Pencil, PieChart, Wallet } from 'lucide-react';
 
 interface DeliveryControlProps {
   isVisible: boolean;
@@ -86,6 +86,22 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
     };
   };
 
+  const syncDeliveryCountToRecord = (updatedRecord: DailyCloseRecord, motoboyId: string) => {
+    const totalDeliveries = updatedRecord.motoboyCommands?.[motoboyId]?.length || 0;
+    const existingPaymentIndex = updatedRecord.payments.findIndex(p => p.staffId === motoboyId);
+    
+    if (existingPaymentIndex >= 0) {
+      updatedRecord.payments[existingPaymentIndex].deliveryCount = totalDeliveries;
+    } else {
+      updatedRecord.payments.push({
+        staffId: motoboyId,
+        amount: 0,
+        deliveryCount: totalDeliveries,
+        isPaid: false
+      });
+    }
+  };
+
   const handleAddCommand = () => {
     if (!selectedMotoboy || !commandCode || !commandAmount) return;
     
@@ -101,14 +117,12 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
     }
 
     if (editingCommand) {
-      // Editar existente
       updatedRecord.motoboyCommands[selectedMotoboy.id] = updatedRecord.motoboyCommands[selectedMotoboy.id].map(cmd => 
         cmd.id === editingCommand.id 
           ? { ...cmd, code: commandCode, type: commandType, paymentMethod, amount, deliveryFee: fee }
           : cmd
       );
     } else {
-      // Adicionar nova
       const newCommand: DeliveryCommand = {
         id: generateId(),
         code: commandCode,
@@ -121,22 +135,9 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
       updatedRecord.motoboyCommands[selectedMotoboy.id].push(newCommand);
     }
     
-    const existingPaymentIndex = updatedRecord.payments.findIndex(p => p.staffId === selectedMotoboy.id);
-    const totalDeliveries = updatedRecord.motoboyCommands[selectedMotoboy.id].length;
-    
-    if (existingPaymentIndex >= 0) {
-      updatedRecord.payments[existingPaymentIndex].deliveryCount = totalDeliveries;
-    } else {
-      updatedRecord.payments.push({
-        staffId: selectedMotoboy.id,
-        amount: 0,
-        deliveryCount: totalDeliveries,
-        isPaid: false
-      });
-    }
-
+    syncDeliveryCountToRecord(updatedRecord, selectedMotoboy.id);
     upsertRecord(updatedRecord);
-    setRecord(updatedRecord);
+    setRecord({ ...updatedRecord }); 
     setSelectedMotoboy(null);
     setEditingCommand(null);
   };
@@ -145,23 +146,45 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
     if (!record || !record.motoboyCommands || !record.motoboyCommands[motoboyId]) return;
     
     if (window.confirm("Deseja remover esta entrega?")) {
-        const updatedRecord = { ...record };
-        updatedRecord.motoboyCommands![motoboyId] = updatedRecord.motoboyCommands![motoboyId].filter(c => c.id !== commandId);
-        
-        const payIndex = updatedRecord.payments.findIndex(p => p.staffId === motoboyId);
-        if (payIndex >= 0) {
-            updatedRecord.payments[payIndex].deliveryCount = updatedRecord.motoboyCommands![motoboyId].length;
+        const updatedRecord = JSON.parse(JSON.stringify(record));
+        if (updatedRecord.motoboyCommands && updatedRecord.motoboyCommands[motoboyId]) {
+            updatedRecord.motoboyCommands[motoboyId] = updatedRecord.motoboyCommands[motoboyId].filter((c: any) => c.id !== commandId);
+            syncDeliveryCountToRecord(updatedRecord, motoboyId);
+            upsertRecord(updatedRecord);
+            setRecord(updatedRecord);
         }
-
-        upsertRecord(updatedRecord);
-        setRecord(updatedRecord);
     }
+  };
+
+  // Lógica de cálculo para o gráfico
+  const getAllCommands = () => {
+    if (!record || !record.motoboyCommands) return [];
+    return Object.values(record.motoboyCommands).flat();
+  };
+
+  const commands = getAllCommands();
+  const totalsByPayment = commands.reduce((acc, cmd) => {
+    const method = cmd.paymentMethod || 'N/I';
+    // AJUSTE: O valor total da entrega é apenas o amount (a taxa já está inclusa)
+    acc[method] = (acc[method] || 0) + cmd.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const grandTotal = Object.values(totalsByPayment).reduce((a, b) => a + b, 0);
+
+  const paymentColors: Record<string, string> = {
+    'Cartão': 'bg-blue-500',
+    'Pix': 'bg-green-500',
+    'Dinheiro': 'bg-orange-500',
+    'Fiado': 'bg-red-500',
+    'Pago iFood': 'bg-purple-500',
+    'N/I': 'bg-gray-400'
   };
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-12 pb-32">
       <section>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="bg-bigRed p-2 rounded-lg text-white shadow-md">
               <Bike size={24} />
@@ -173,6 +196,51 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
           </div>
         </div>
 
+        {/* DASHBOARD DE PAGAMENTOS (GRÁFICO) */}
+        {commands.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-10">
+            <div className="flex items-center gap-2 mb-6">
+              <PieChart className="text-bigYellow" size={20} />
+              <h3 className="text-sm font-black text-gray-700 dark:text-gray-200 uppercase tracking-widest">Resumo de Recebimentos</h3>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Barra Consolidada (Gráfico de Barras Empilhadas) */}
+              <div className="h-4 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex shadow-inner">
+                {Object.entries(totalsByPayment).map(([method, amount]) => {
+                  const percentage = (amount / grandTotal) * 100;
+                  return (
+                    <div 
+                      key={method}
+                      style={{ width: `${percentage}%` }}
+                      className={`${paymentColors[method] || 'bg-gray-400'} h-full transition-all duration-500`}
+                      title={`${method}: R$ ${amount.toFixed(2)}`}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Legenda e Valores Individuais */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {['Pago iFood', 'Dinheiro', 'Pix', 'Fiado', 'Cartão'].map((method) => {
+                  const val = totalsByPayment[method] || 0;
+                  const perc = grandTotal > 0 ? (val / grandTotal) * 100 : 0;
+                  return (
+                    <div key={method} className="flex flex-col p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <div className={`w-2.5 h-2.5 rounded-full ${paymentColors[method]}`} />
+                        <span className="text-[10px] font-black text-gray-400 uppercase truncate">{method}</span>
+                      </div>
+                      <span className="text-sm font-black text-gray-800 dark:text-white">R$ {val.toFixed(2)}</span>
+                      <span className="text-[9px] text-gray-400 font-bold">{perc.toFixed(1)}% do total</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeMotoboys.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-16 text-center border-2 border-dashed border-gray-200 dark:border-gray-700">
              <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -182,9 +250,8 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeMotoboys.map(moto => {
-              const commands = record?.motoboyCommands?.[moto.id] || [];
-              // SOMA APENAS AS TAXAS DE ENTREGA
-              const totalFees = commands.reduce((acc, c) => acc + (c.deliveryFee || 0), 0);
+              const motoCommands = record?.motoboyCommands?.[moto.id] || [];
+              const totalFees = motoCommands.reduce((acc, c) => acc + (c.deliveryFee || 0), 0);
               
               return (
                 <div key={moto.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col group hover:shadow-md transition-all relative">
@@ -209,7 +276,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                   
                   <div className="p-4 flex-1">
                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Entregas ({commands.length})</span>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Entregas ({motoCommands.length})</span>
                         <div className="flex flex-col items-end">
                           <span className="text-xs text-gray-400 font-bold uppercase tracking-tighter mb-0.5">Total Taxas</span>
                           <span className="text-sm font-black text-bigRed">R$ {totalFees.toFixed(2)}</span>
@@ -217,15 +284,17 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                      </div>
                      
                      <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                        {commands.length === 0 ? (
+                        {motoCommands.length === 0 ? (
                           <p className="text-center py-6 text-xs text-gray-400 italic">Sem entregas lançadas.</p>
                         ) : (
-                          commands.map(cmd => (
+                          motoCommands.map(cmd => (
                             <div key={cmd.id} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700 group/item">
                                <div className="flex flex-col">
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-gray-700 dark:text-gray-300">#{cmd.code}</span>
-                                    <span className="text-[8px] bg-white dark:bg-gray-800 px-1 py-0.5 rounded border border-gray-100 dark:border-gray-700 font-black text-gray-400 uppercase">{cmd.paymentMethod || 'N/I'}</span>
+                                    <span className={`text-[8px] px-1 py-0.5 rounded border border-gray-100 dark:border-gray-700 font-black uppercase ${paymentColors[cmd.paymentMethod || '']?.replace('bg-', 'text-') || 'text-gray-400'} bg-white dark:bg-gray-800`}>
+                                      {cmd.paymentMethod || 'N/I'}
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="text-[8px] uppercase font-black text-gray-400">{cmd.type}</span>
@@ -236,11 +305,19 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                                </div>
                                <div className="flex items-center gap-3">
                                   <div className="flex flex-col items-end mr-1">
-                                    <span className="font-mono font-bold text-xs text-gray-700 dark:text-gray-200">R$ {(cmd.amount + (cmd.deliveryFee || 0)).toFixed(2)}</span>
+                                    {/* AJUSTE: Exibe apenas o amount do pedido, sem somar a taxa */}
+                                    <span className="font-mono font-bold text-xs text-gray-700 dark:text-gray-200">R$ {cmd.amount.toFixed(2)}</span>
                                   </div>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                  <div className="flex items-center gap-1">
                                      <button onClick={() => handleEditOpen(moto, cmd)} className="text-gray-400 hover:text-blue-500 transition-colors p-1" title="Editar"><Pencil size={14} /></button>
-                                     <button onClick={() => removeCommand(moto.id, cmd.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1" title="Excluir"><Trash2 size={14} /></button>
+                                     <button 
+                                      type="button"
+                                      onClick={() => removeCommand(moto.id, cmd.id)} 
+                                      className="text-gray-400 hover:text-red-500 transition-colors p-1.5 border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 shadow-sm active:scale-95 flex items-center justify-center" 
+                                      title="Excluir"
+                                     >
+                                      <Trash2 size={16} />
+                                     </button>
                                   </div>
                                </div>
                             </div>
@@ -316,10 +393,11 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                       value={paymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value)}
                     >
-                      <option value="Cartão">Cartão</option>
-                      <option value="Pix">Pix</option>
+                      <option value="Pago iFood">Pago iFood</option>
                       <option value="Dinheiro">Dinheiro</option>
-                      <option value="Cortesia">Cortesia</option>
+                      <option value="Pix">Pix</option>
+                      <option value="Fiado">Fiado</option>
+                      <option value="Cartão">Cartão</option>
                     </select>
                   </div>
                 </div>
@@ -327,7 +405,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Valor do Pedido</label>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Valor do Pedido (Total)</label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                     <input 
@@ -342,7 +420,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Taxa Entrega</label>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Taxa (Já Inclusa)</label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                     <input 
