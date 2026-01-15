@@ -156,7 +156,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
     }
   };
 
-  // Lógica de cálculo para o gráfico
+ 
   const getAllCommands = () => {
     if (!record || !record.motoboyCommands) return [];
     return Object.values(record.motoboyCommands).flat();
@@ -165,7 +165,7 @@ const DeliveryControl: React.FC<DeliveryControlProps> = ({ isVisible }) => {
   const commands = getAllCommands();
   const totalsByPayment = commands.reduce((acc, cmd) => {
     const method = cmd.paymentMethod || 'N/I';
-    // AJUSTE: O valor total da entrega é apenas o amount (a taxa já está inclusa)
+    
     acc[method] = (acc[method] || 0) + cmd.amount;
     return acc;
   }, {} as Record<string, number>);
